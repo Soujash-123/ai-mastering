@@ -37,6 +37,7 @@ export type JobResult = {
     spatial_assessment?: string;
     emotional_assessment?: string;
     final_summary?: string;
+    bullets?: string[];
   };
   input_url: string;
   master_wav_url: string;

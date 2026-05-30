@@ -144,14 +144,16 @@ export default function ResultPage() {
           {data.report.emotional_assessment && (
             <p className="mt-4 text-sm leading-relaxed text-mist-200/90">{data.report.emotional_assessment}</p>
           )}
-          {[
-            ["Mix strengths", data.report.mix_strengths],
-            ["Mix issues", data.report.mix_issues],
-            ["Mastering focus points", data.report.mastering_focus_points],
-            ["Translation notes", data.report.translation_notes],
-            ["Spatial notes", data.report.spatial_notes],
-            ["Harmonic notes", data.report.harmonic_notes],
-          ].map(([title, items]) =>
+          {(
+            [
+              ["Mix strengths", data.report.mix_strengths],
+              ["Mix issues", data.report.mix_issues],
+              ["Mastering focus points", data.report.mastering_focus_points],
+              ["Translation notes", data.report.translation_notes],
+              ["Spatial notes", data.report.spatial_notes],
+              ["Harmonic notes", data.report.harmonic_notes],
+            ] as [string, string[] | undefined][]
+          ).map(([title, items]) =>
             Array.isArray(items) && items.length > 0 ? (
               <div key={title} className="mt-4">
                 <p className="text-xs uppercase tracking-wide text-mist-200/80">{title}</p>
