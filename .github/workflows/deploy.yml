@@ -107,16 +107,51 @@ jobs:
           ls -la
       
       # ========================================================================
-      # STEP 5: Pre-Deployment Checks
+      # STEP 5: Create .env File from Secrets
+      # ========================================================================
+      - name: Create Backend .env from Secrets
+        run: |
+          echo "🔐 Creating backend/.env from GitHub secrets..."
+          
+          # Create backend directory if it doesn't exist
+          mkdir -p backend
+          
+          # Create .env file with secrets
+          cat > backend/.env << 'EOF'
+OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+OPENAI_MASTERING_MODEL=${{ secrets.OPENAI_MASTERING_MODEL }}
+AI_MASTERING_DATA_DIR=${{ secrets.AI_MASTERING_DATA_DIR }}
+EOF
+          
+          # Verify .env was created
+          if [ ! -f "backend/.env" ]; then
+            echo "❌ FATAL: Failed to create backend/.env"
+            exit 1
+          fi
+          
+          # Verify secrets were populated
+          if ! grep -q "OPENAI_API_KEY" backend/.env; then
+            echo "❌ FATAL: OPENAI_API_KEY secret not found"
+            exit 1
+          fi
+          
+          echo "✅ backend/.env created successfully"
+          echo "✅ Secrets populated from GitHub"
+          
+          # Verify file permissions (no output for security)
+          chmod 600 backend/.env
+          echo "✅ File permissions set to 600"
+      
+      # ========================================================================
+      # STEP 6: Pre-Deployment Checks
       # ========================================================================
       - name: Pre-Deployment Checks
         run: |
           echo "🔐 Verifying deployment prerequisites..."
           
-          # Check if backend/.env exists (must exist on runner)
+          # Check if backend/.env exists
           if [ ! -f "backend/.env" ]; then
-            echo "❌ FATAL: backend/.env not found on runner"
-            echo "   The .env file must exist on the EC2 instance before deployment"
+            echo "❌ FATAL: backend/.env not found"
             exit 1
           fi
           echo "✅ backend/.env exists"
@@ -131,7 +166,7 @@ jobs:
           echo "✅ All pre-deployment checks passed"
       
       # ========================================================================
-      # STEP 6: Execute Deployment
+      # STEP 7: Execute Deployment
       # ========================================================================
       - name: Execute Deployment
         id: deploy
