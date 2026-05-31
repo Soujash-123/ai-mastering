@@ -3,7 +3,10 @@ FROM python:3.12-slim
 WORKDIR /app/backend
 
 ENV PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    OPENAI_API_KEY="" \
+    OPENAI_MASTERING_MODEL=gpt-5.1 \
+    AI_MASTERING_DATA_DIR=./data
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libsndfile1 \

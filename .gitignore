@@ -11,6 +11,8 @@ myenv/
 .env
 .env.local
 *.pem
+backend/.env
+deployment-*.log
 
 # Build & cache
 .next/

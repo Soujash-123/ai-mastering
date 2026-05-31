@@ -1,0 +1,249 @@
+name: Deploy to Production
+
+# ==============================================================================
+# TRIGGER CONFIGURATION
+# ==============================================================================
+# This workflow triggers automatically when code is pushed to the main branch
+on:
+  push:
+    branches:
+      - main
+    # Optional: specify paths to trigger only on changes to specific files
+    # paths:
+    #   - 'backend/**'
+    #   - 'frontend/**'
+    #   - 'docker-compose.yml'
+    #   - 'deploy.sh'
+
+# ==============================================================================
+# ENVIRONMENT CONFIGURATION
+# ==============================================================================
+env:
+  DEPLOYMENT_ENVIRONMENT: production
+  LOG_LEVEL: info
+
+# ==============================================================================
+# WORKFLOW JOBS
+# ==============================================================================
+jobs:
+  deploy:
+    name: Deploy Application
+    # Runs on self-hosted runner
+    runs-on: self-hosted
+    
+    # Set timeout to prevent stuck deployments
+    timeout-minutes: 30
+    
+    steps:
+      # ========================================================================
+      # STEP 1: Checkout Repository
+      # ========================================================================
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1  # Shallow clone for faster checkout
+        
+      # ========================================================================
+      # STEP 2: Validate Repository Structure
+      # ========================================================================
+      - name: Validate Repository Structure
+        run: |
+          echo "🔍 Validating repository structure..."
+          
+          # Check critical files exist
+          if [ ! -f "docker-compose.yml" ]; then
+            echo "❌ docker-compose.yml not found"
+            exit 1
+          fi
+          echo "✅ docker-compose.yml found"
+          
+          if [ ! -f "deploy.sh" ]; then
+            echo "❌ deploy.sh not found"
+            exit 1
+          fi
+          echo "✅ deploy.sh found"
+          
+          if [ ! -f "backend/Dockerfile" ]; then
+            echo "❌ backend/Dockerfile not found"
+            exit 1
+          fi
+          echo "✅ backend/Dockerfile found"
+          
+          if [ ! -f "frontend/Dockerfile" ]; then
+            echo "❌ frontend/Dockerfile not found"
+            exit 1
+          fi
+          echo "✅ frontend/Dockerfile found"
+          
+          echo "✅ All critical files present"
+      
+      # ========================================================================
+      # STEP 3: Make Deploy Script Executable
+      # ========================================================================
+      - name: Make Deploy Script Executable
+        run: |
+          echo "📝 Setting executable permissions on deploy.sh..."
+          chmod +x deploy.sh
+          echo "✅ deploy.sh is now executable"
+          ls -lh deploy.sh
+      
+      # ========================================================================
+      # STEP 4: Display Environment Information
+      # ========================================================================
+      - name: Display Environment Information
+        run: |
+          echo "🖥️  System Information:"
+          echo "---"
+          uname -a
+          echo ""
+          echo "🐳 Docker Information:"
+          docker --version
+          docker compose version
+          echo ""
+          echo "📍 Working Directory:"
+          pwd
+          echo ""
+          echo "📂 Repository Contents:"
+          ls -la
+      
+      # ========================================================================
+      # STEP 5: Pre-Deployment Checks
+      # ========================================================================
+      - name: Pre-Deployment Checks
+        run: |
+          echo "🔐 Verifying deployment prerequisites..."
+          
+          # Check if backend/.env exists (must exist on runner)
+          if [ ! -f "backend/.env" ]; then
+            echo "❌ FATAL: backend/.env not found on runner"
+            echo "   The .env file must exist on the EC2 instance before deployment"
+            exit 1
+          fi
+          echo "✅ backend/.env exists"
+          
+          # Check Docker daemon
+          if ! docker ps > /dev/null 2>&1; then
+            echo "❌ Docker daemon is not accessible"
+            exit 1
+          fi
+          echo "✅ Docker daemon is accessible"
+          
+          echo "✅ All pre-deployment checks passed"
+      
+      # ========================================================================
+      # STEP 6: Execute Deployment
+      # ========================================================================
+      - name: Execute Deployment
+        id: deploy
+        run: |
+          echo "🚀 Starting deployment..."
+          ./deploy.sh
+          echo "deploy_status=success" >> $GITHUB_OUTPUT
+      
+      # ========================================================================
+      # STEP 7: Post-Deployment Verification
+      # ========================================================================
+      - name: Verify Deployment
+        if: success()
+        run: |
+          echo "✅ Verifying deployment..."
+          
+          # Wait for services to be responsive
+          echo "⏳ Waiting for backend service..."
+          for i in {1..15}; do
+            if curl -s http://localhost:8000/docs > /dev/null; then
+              echo "✅ Backend service is responding"
+              break
+            fi
+            echo "  Attempt $i/15 - waiting..."
+            sleep 2
+          done
+          
+          echo "⏳ Waiting for frontend service..."
+          for i in {1..15}; do
+            if curl -s http://localhost:3000 > /dev/null; then
+              echo "✅ Frontend service is responding"
+              break
+            fi
+            echo "  Attempt $i/15 - waiting..."
+            sleep 2
+          done
+          
+          echo "✅ Deployment verification complete"
+      
+      # ========================================================================
+      # STEP 8: Generate Deployment Report
+      # ========================================================================
+      - name: Generate Deployment Report
+        if: always()
+        run: |
+          echo "📊 Final Deployment Report"
+          echo "=================================="
+          echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "Branch: ${{ github.ref }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Actor: ${{ github.actor }}"
+          echo ""
+          echo "Running Services:"
+          docker compose ps
+          echo ""
+          echo "Docker Images:"
+          docker images --filter "dangling=false" --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
+          echo ""
+          echo "Disk Usage:"
+          df -h / | tail -1
+          echo ""
+          echo "Docker System Pruning Status:"
+          docker system df
+      
+      # ========================================================================
+      # STEP 9: Notification on Failure
+      # ========================================================================
+      - name: Handle Deployment Failure
+        if: failure()
+        run: |
+          echo "❌ DEPLOYMENT FAILED"
+          echo ""
+          echo "📋 Container Logs:"
+          docker compose logs --tail=50 2>/dev/null || echo "No containers running"
+          echo ""
+          echo "🔍 Docker Images:"
+          docker images
+          echo ""
+          echo "🔧 System Status:"
+          docker system df
+          exit 1
+
+# ==============================================================================
+# WORKFLOW CONFIGURATION NOTES
+# ==============================================================================
+# 
+# 1. RUNNER CONFIGURATION:
+#    The workflow uses: runs-on: self-hosted
+#    
+#    This targets any self-hosted runner registered with your GitHub repository.
+#    Optional: You can also specify labels if you want more control over which
+#    runner executes the job:
+#      runs-on: [self-hosted, production, ec2]
+#    
+#    To view registered runners:
+#      Settings → Actions → Runners
+#
+# 2. ENVIRONMENT SETUP ON EC2:
+#    - Backend/.env must exist with OPENAI_API_KEY
+#    - Docker daemon must be running
+#    - GitHub runner user must be in docker group:
+#      sudo usermod -aG docker github-runner
+#
+# 3. SECURITY CONSIDERATIONS:
+#    - .env files are NOT stored in the repository
+#    - .env must be manually created on the EC2 instance
+#    - Only push code, not secrets
+#    - Restrict main branch to require pull request reviews
+#
+# 4. FAILURE MODES:
+#    - If deploy.sh exits with non-zero status, workflow fails
+#    - Logs are preserved for debugging
+#    - No automatic rollback (design: requires manual intervention)
+#
+# ==============================================================================

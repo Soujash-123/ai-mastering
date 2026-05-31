@@ -1,10 +1,43 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from ipaddress import ip_address
 from pathlib import Path
 from typing import Optional
+from urllib.error import URLError
+from urllib.request import urlopen
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+_LOCAL_CORS_ORIGINS = (
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+)
+
+_PUBLIC_IP_ENDPOINTS = (
+    "https://api.ipify.org",
+    "https://ifconfig.me/ip",
+)
+
+_FRONTEND_PORTS = (3000,)
+
+
+def _current_public_ip() -> Optional[str]:
+    for endpoint in _PUBLIC_IP_ENDPOINTS:
+        try:
+            with urlopen(endpoint, timeout=2) as response:
+                ip = response.read(64).decode("utf-8").strip()
+                parsed_ip = ip_address(ip)
+        except (OSError, URLError, TimeoutError, ValueError):
+            continue
+
+        if parsed_ip.version == 6:
+            return f"[{parsed_ip.compressed}]"
+
+        return parsed_ip.compressed
+
+    return None
 
 
 class Settings(BaseSettings):
@@ -13,7 +46,6 @@ class Settings(BaseSettings):
     openai_api_key: Optional[str] = None
     openai_mastering_model: str = "gpt-5"
     ai_mastering_data_dir: Path = Path("./data")
-    cors_origins: str = "http://localhost:3000"
 
     @property
     def data_dir(self) -> Path:
@@ -23,7 +55,17 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> list[str]:
-        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        origins = list(_LOCAL_CORS_ORIGINS)
+        public_ip = _current_public_ip()
+
+        if public_ip:
+            origins.extend(
+                f"{scheme}://{public_ip}:{port}"
+                for scheme in ("http", "https")
+                for port in _FRONTEND_PORTS
+            )
+
+        return list(dict.fromkeys(origins))
 
 
 @lru_cache
