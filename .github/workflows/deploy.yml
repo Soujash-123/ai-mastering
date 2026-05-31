@@ -112,33 +112,31 @@ jobs:
       - name: Create Backend .env from Secrets
         run: |
           echo "🔐 Creating backend/.env from GitHub secrets..."
-          
+
           # Create backend directory if it doesn't exist
           mkdir -p backend
-          
-          # Create .env file with secrets
-          cat > backend/.env << 'EOF'
-OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-OPENAI_MASTERING_MODEL=${{ secrets.OPENAI_MASTERING_MODEL }}
-AI_MASTERING_DATA_DIR=${{ secrets.AI_MASTERING_DATA_DIR }}
-EOF
-          
+
+          # Write secrets to .env using echo to avoid heredoc parsing issues
+          echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" > backend/.env
+          echo "OPENAI_MASTERING_MODEL=${{ secrets.OPENAI_MASTERING_MODEL }}" >> backend/.env
+          echo "AI_MASTERING_DATA_DIR=${{ secrets.AI_MASTERING_DATA_DIR }}" >> backend/.env
+
           # Verify .env was created
           if [ ! -f "backend/.env" ]; then
             echo "❌ FATAL: Failed to create backend/.env"
             exit 1
           fi
-          
+
           # Verify secrets were populated
           if ! grep -q "OPENAI_API_KEY" backend/.env; then
             echo "❌ FATAL: OPENAI_API_KEY secret not found"
             exit 1
           fi
-          
+
           echo "✅ backend/.env created successfully"
           echo "✅ Secrets populated from GitHub"
-          
-          # Verify file permissions (no output for security)
+
+          # Secure the file
           chmod 600 backend/.env
           echo "✅ File permissions set to 600"
       
