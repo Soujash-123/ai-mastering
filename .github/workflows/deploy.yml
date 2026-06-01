@@ -59,6 +59,12 @@ jobs:
             exit 1
           fi
           echo "✅ docker-compose.yml found"
+
+          if [ ! -f "docker-compose.prod.yml" ]; then
+            echo "❌ docker-compose.prod.yml not found"
+            exit 1
+          fi
+          echo "✅ docker-compose.prod.yml found"
           
           if [ ! -f "deploy.sh" ]; then
             echo "❌ deploy.sh not found"
@@ -235,7 +241,7 @@ jobs:
           echo "Actor: ${{ github.actor }}"
           echo ""
           echo "Running Services:"
-          docker compose ps
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
           echo ""
           echo "Docker Images:"
           docker images --filter "dangling=false" --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
@@ -255,7 +261,7 @@ jobs:
           echo "❌ DEPLOYMENT FAILED"
           echo ""
           echo "📋 Container Logs:"
-          docker compose logs --tail=50 2>/dev/null || echo "No containers running"
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --tail=50 2>/dev/null || echo "No containers running"
           echo ""
           echo "🔍 Docker Images:"
           docker images

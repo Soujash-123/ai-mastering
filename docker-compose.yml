@@ -1,28 +1,47 @@
-version: "3.9"
-
 services:
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      - OPENAI_MASTERING_MODEL=${OPENAI_MASTERING_MODEL:-gpt-5.1}
+      - AI_MASTERING_DATA_DIR=${AI_MASTERING_DATA_DIR:-/app/backend/data}
+    expose:
+      - "8000"
     ports:
       - "8000:8000"
-    env_file:
-      - ./backend/.env
-    environment:
-      - AI_MASTERING_DATA_DIR=/app/backend/data
     volumes:
-      - ./backend/data:/app/backend/data
+      - backend_data:/app/backend/data
+
+  frontend-app:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: runner
+      args:
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-}
+    environment:
+      - NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE:-}
+    expose:
+      - "3000"
+    depends_on:
+      - backend
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:8000}
+      target: nginx
+    expose:
+      - "80"
     ports:
-      - "3000:3000"
+      - "3000:80"
     depends_on:
+      - frontend-app
       - backend
-    environment:
-      - NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE:-http://localhost:8000}
+
+volumes:
+  backend_data:
