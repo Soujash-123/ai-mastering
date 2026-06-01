@@ -187,7 +187,7 @@ jobs:
         id: deploy
         run: |
           echo "🚀 Starting deployment..."
-          ./deploy.sh
+          bash ./deploy.sh
           echo "deploy_status=success" >> $GITHUB_OUTPUT
       
       # ========================================================================
