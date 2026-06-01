@@ -32,7 +32,7 @@ jobs:
   deploy:
     name: Deploy Application
     # Runs on self-hosted runner
-    runs-on: self-hosted
+    runs-on: [self-hosted, linux, x64, production, ec2]
     
     # Set timeout to prevent stuck deployments
     timeout-minutes: 45
