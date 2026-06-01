@@ -2,6 +2,9 @@ node_modules/
 .npm/
 .next/
 out/
+.git/
+.turbo/
+.cache/
 .DS_Store
 tsconfig.tsbuildinfo
 npm-debug.log*

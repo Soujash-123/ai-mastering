@@ -8,33 +8,30 @@ ENV NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE}
 FROM base AS deps
 
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --no-audit --no-fund
 
 FROM deps AS builder
 
+ENV NEXT_TELEMETRY_DISABLED=1
+
 COPY . .
-RUN npm run build && ls -la .next
-
-FROM deps AS prod-deps
-
-RUN npm prune --omit=dev
+RUN npm run build
 
 FROM node:22-alpine AS runner
 
 WORKDIR /app
 ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
 ARG NEXT_PUBLIC_API_BASE=
 ENV NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE}
 
-COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/next.config.js ./next.config.js
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 
 EXPOSE 3000
 
-CMD ["npm", "start"]
+CMD ["node", "server.js"]
 
 FROM nginx:1.27-alpine AS nginx
 
