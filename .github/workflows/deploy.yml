@@ -1,0 +1,65 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on:
+      - self-hosted
+      - linux
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create backend env file from secrets
+        shell: bash
+        env:
+          BACKEND_ENV_FILE: ${{ secrets.BACKEND_ENV_FILE }}
+        run: |
+          set -Eeuo pipefail
+          if [ -z "${BACKEND_ENV_FILE}" ]; then
+            echo "Missing required secret: BACKEND_ENV_FILE"
+            exit 1
+          fi
+          mkdir -p backend
+          printf '%s\n' "${BACKEND_ENV_FILE}" > backend/.env
+          chmod 600 backend/.env
+
+      - name: Create root env file from secrets
+        shell: bash
+        env:
+          ROOT_ENV_FILE: ${{ secrets.ROOT_ENV_FILE }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          NEXT_PUBLIC_API_BASE: ${{ secrets.NEXT_PUBLIC_API_BASE }}
+          OPENAI_MASTERING_MODEL: ${{ secrets.OPENAI_MASTERING_MODEL }}
+          AI_MASTERING_DATA_DIR: ${{ secrets.AI_MASTERING_DATA_DIR }}
+        run: |
+          set -Eeuo pipefail
+          if [ -n "${ROOT_ENV_FILE}" ]; then
+            printf '%s\n' "${ROOT_ENV_FILE}" > .env
+          else
+            {
+              echo "OPENAI_API_KEY=${OPENAI_API_KEY}"
+              echo "NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE:-http://localhost:8000}"
+              echo "OPENAI_MASTERING_MODEL=${OPENAI_MASTERING_MODEL:-gpt-5.1}"
+              echo "AI_MASTERING_DATA_DIR=${AI_MASTERING_DATA_DIR:-/app/backend/data}"
+            } > .env
+          fi
+          chmod 600 .env
+
+      - name: Deploy
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          chmod +x ./deploy.sh
+          ./deploy.sh
