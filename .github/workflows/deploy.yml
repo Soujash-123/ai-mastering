@@ -21,6 +21,9 @@ on:
 env:
   DEPLOYMENT_ENVIRONMENT: production
   LOG_LEVEL: info
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  OPENAI_MASTERING_MODEL: ${{ secrets.OPENAI_MASTERING_MODEL }}
+  AI_MASTERING_DATA_DIR: ${{ secrets.AI_MASTERING_DATA_DIR }}
 
 # ==============================================================================
 # WORKFLOW JOBS
@@ -32,7 +35,7 @@ jobs:
     runs-on: self-hosted
     
     # Set timeout to prevent stuck deployments
-    timeout-minutes: 30
+    timeout-minutes: 45
     
     steps:
       # ========================================================================
@@ -113,13 +116,27 @@ jobs:
         run: |
           echo "🔐 Creating backend/.env from GitHub secrets..."
 
+          # Fail fast if any required secret is missing
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "❌ FATAL: OPENAI_API_KEY is empty or not configured"
+            exit 1
+          fi
+          if [ -z "$OPENAI_MASTERING_MODEL" ]; then
+            echo "❌ FATAL: OPENAI_MASTERING_MODEL is empty or not configured"
+            exit 1
+          fi
+          if [ -z "$AI_MASTERING_DATA_DIR" ]; then
+            echo "❌ FATAL: AI_MASTERING_DATA_DIR is empty or not configured"
+            exit 1
+          fi
+
           # Create backend directory if it doesn't exist
           mkdir -p backend
 
           # Write secrets to .env using echo to avoid heredoc parsing issues
-          echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" > backend/.env
-          echo "OPENAI_MASTERING_MODEL=${{ secrets.OPENAI_MASTERING_MODEL }}" >> backend/.env
-          echo "AI_MASTERING_DATA_DIR=${{ secrets.AI_MASTERING_DATA_DIR }}" >> backend/.env
+          echo "OPENAI_API_KEY=$OPENAI_API_KEY" > backend/.env
+          echo "OPENAI_MASTERING_MODEL=$OPENAI_MASTERING_MODEL" >> backend/.env
+          echo "AI_MASTERING_DATA_DIR=$AI_MASTERING_DATA_DIR" >> backend/.env
 
           # Verify .env was created
           if [ ! -f "backend/.env" ]; then

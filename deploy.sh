@@ -111,9 +111,9 @@ stop_existing_containers() {
 }
 
 build_docker_images() {
-    log_info "Building Docker images (no cache)..."
+    log_info "Building Docker images..."
     
-    if docker compose -f "${SCRIPT_DIR}/docker-compose.yml" build --no-cache 2>&1 | tee -a "${DEPLOYMENT_LOG}"; then
+    if docker compose -f "${SCRIPT_DIR}/docker-compose.yml" build 2>&1 | tee -a "${DEPLOYMENT_LOG}"; then
         log_success "Docker images built successfully"
     else
         log_error "Failed to build Docker images"
