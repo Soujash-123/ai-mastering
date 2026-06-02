@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { MasteringIntensityBars } from "@/components/mastering/MasteringIntensityBars";
-import { apiUrl, fetchResult, type JobResult } from "@/lib/api";
+import { apiUrl, deleteJob, fetchResult, type JobResult } from "@/lib/api";
 
 async function drawWaveform(canvas: HTMLCanvasElement, audioUrl: string, color: string) {
   const ctx = canvas.getContext("2d");
@@ -86,6 +86,15 @@ export default function ResultPage() {
   }, [data]);
 
   useEffect(() => {
+    // Try sessionStorage first — ephemeral result delivered via WebSocket
+    const cached = sessionStorage.getItem(`kord_result_${jobId}`);
+    if (cached) {
+      try {
+        setData(JSON.parse(cached) as JobResult);
+        return;
+      } catch { /* corrupt, fall through */ }
+    }
+    // Fallback: fetch from API (non-ephemeral jobs or hard reload)
     let cancelled = false;
     (async () => {
       try {
@@ -98,6 +107,16 @@ export default function ResultPage() {
       }
     })();
     return () => { cancelled = true; };
+  }, [jobId]);
+
+  // Delete job and sessionStorage when user leaves the result page
+  useEffect(() => {
+    const cleanup = () => {
+      sessionStorage.removeItem(`kord_result_${jobId}`);
+      void deleteJob(jobId);
+    };
+    window.addEventListener("beforeunload", cleanup);
+    return () => window.removeEventListener("beforeunload", cleanup);
   }, [jobId]);
 
   useEffect(() => {

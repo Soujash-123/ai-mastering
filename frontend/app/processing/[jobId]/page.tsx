@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { fetchResult, fetchStatus } from "@/lib/api";
+import { wsUrl } from "@/lib/api";
 
 // Status → step index
 const STATUS_STEP: Record<string, number> = {
@@ -157,29 +157,28 @@ export default function ProcessingPage() {
     return () => clearInterval(id);
   }, []);
 
-  // Poll status
+  // WebSocket progress stream
   useEffect(() => {
-    let active = true;
-    let timer: ReturnType<typeof setTimeout>;
-    async function poll() {
+    const ws = new WebSocket(wsUrl(`/ws/jobs/${jobId}`));
+    ws.onmessage = (e) => {
       try {
-        const s = await fetchStatus(jobId);
-        if (!active) return;
-        setStatus(s.status);
-        setProgress(s.progress ?? 0);
-        setMessage(s.message ?? "");
-        if (s.status === "completed") {
-          await fetchResult(jobId);
+        const msg = JSON.parse(e.data as string);
+        if (msg.type === "progress") {
+          setStatus(msg.status);
+          setProgress(msg.progress ?? 0);
+          setMessage(msg.message ?? "");
+        } else if (msg.type === "result") {
+          // Stash full result in sessionStorage so result page never needs to fetch it
+          try { sessionStorage.setItem(`kord_result_${jobId}`, JSON.stringify(msg)); } catch { /* quota */ }
           router.push(`/result/${jobId}`);
-        } else if (s.status !== "failed") {
-          timer = setTimeout(poll, 2000);
+        } else if (msg.type === "failed") {
+          setStatus("failed");
+          setMessage(msg.message || "Processing failed");
         }
-      } catch {
-        if (active) timer = setTimeout(poll, 4000);
-      }
-    }
-    void poll();
-    return () => { active = false; clearTimeout(timer); };
+      } catch { /* malformed frame */ }
+    };
+    ws.onerror = () => setMessage("Connection error — please refresh.");
+    return () => { ws.close(); };
   }, [jobId, router]);
 
   const currentStep = STATUS_STEP[status] ?? -1;

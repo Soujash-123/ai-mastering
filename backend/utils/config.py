@@ -8,6 +8,9 @@ from urllib.error import URLError
 from urllib.request import urlopen
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+import tempfile
+import shutil
+from datetime import date, datetime
 
 
 _LOCAL_CORS_ORIGINS = (
@@ -47,12 +50,43 @@ class Settings(BaseSettings):
 
     openai_api_key: Optional[str] = None
     openai_mastering_model: str = "gpt-5"
-    ai_mastering_data_dir: Path = Path("./data")
+    # If unset or empty, use a dated temp folder (refreshed daily).
+    ai_mastering_data_dir: Optional[Path] = None
 
     @property
     def data_dir(self) -> Path:
-        p = self.ai_mastering_data_dir.resolve()
-        p.mkdir(parents=True, exist_ok=True)
+        # Explicit env-configured path wins
+        if self.ai_mastering_data_dir and str(self.ai_mastering_data_dir).strip():
+            p = self.ai_mastering_data_dir.resolve()
+            p.mkdir(parents=True, exist_ok=True)
+            return p
+
+        # Default: use system tmp folder under `ai_mastering/<YYYY-MM-DD>-H<00|06|12|18>`
+        now = datetime.now()
+        slot_hour = (now.hour // 6) * 6
+        slot = f"{now.date().isoformat()}-H{slot_hour:02d}"
+        parent = Path(tempfile.gettempdir()) / "ai_mastering"
+        p = parent / slot
+        try:
+            p.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            # fallback to cwd ./data if tmp isn't writable
+            fb = Path("./data").resolve()
+            fb.mkdir(parents=True, exist_ok=True)
+            return fb
+
+        # cleanup other rotated folders in the tmp dir (best-effort)
+        try:
+            for child in parent.iterdir():
+                if child.is_dir() and child.name != slot:
+                    try:
+                        shutil.rmtree(child)
+                    except Exception:
+                        # ignore cleanup failures
+                        pass
+        except Exception:
+            pass
+
         return p
 
     @property

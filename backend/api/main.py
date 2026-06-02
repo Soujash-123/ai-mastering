@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 from pathlib import Path
 from typing import Union
@@ -11,12 +12,12 @@ if str(_BACKEND_ROOT) not in sys.path:
 
 import numpy as np
 import soundfile as sf
-from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 from api.schemas import JobCreateResponse, JobResultResponse, JobStatus, JobStatusResponse
-from services.job_store import job_store
+from services.job_store import job_store, delete_job_by_id, schedule_delete
 from utils.config import get_settings
 from utils.json_safe import to_json_safe
 from utils.log import configure_logging
@@ -71,6 +72,7 @@ async def create_job(
     file: UploadFile = File(...),
     target_platform: str = Form("Spotify"),
     user_intent: str = Form(""),
+    ephemeral: bool = Form(False),
 ) -> JobCreateResponse:
     if not file.filename:
         raise HTTPException(status_code=400, detail="Missing filename")
@@ -82,7 +84,7 @@ async def create_job(
             detail="Only WAV and FLAC uploads are supported (no transcoding pipeline).",
         )
 
-    rec = await job_store.create_job(settings.data_dir)
+    rec = await job_store.create_job(settings.data_dir, ephemeral=ephemeral)
     assert rec.input_path is not None
 
     try:
@@ -173,3 +175,72 @@ async def job_file(job_id: str, kind: str) -> FileResponse:
 @app.get("/api/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.delete("/api/jobs/{job_id}")
+async def delete_job(job_id: str) -> dict[str, str]:
+    """Explicitly delete a job and its files (called by frontend on page unload)."""
+    rec = await job_store.get(job_id)
+    if not rec:
+        return {"status": "not_found"}
+    await delete_job_by_id(job_id)
+    return {"status": "deleted"}
+
+
+@app.websocket("/ws/jobs/{job_id}")
+async def ws_job_progress(websocket: WebSocket, job_id: str) -> None:
+    """Stream job progress and final result over WebSocket."""
+    await websocket.accept()
+    try:
+        while True:
+            rec = await job_store.get(job_id)
+            if not rec:
+                await websocket.send_json({"type": "error", "detail": "Job not found"})
+                break
+
+            await websocket.send_json({
+                "type": "progress",
+                "status": rec.status.value,
+                "progress": rec.progress,
+                "message": rec.message or "",
+            })
+
+            if rec.status == JobStatus.completed:
+                await websocket.send_json({
+                    "type": "result",
+                    "job_id": rec.job_id,
+                    "status": rec.status.value,
+                    "analysis": to_json_safe(rec.analysis or {}),
+                    "raw_intent": to_json_safe(rec.raw_intent) if rec.raw_intent is not None else None,
+                    "safe_intent": to_json_safe(rec.safe_intent) if rec.safe_intent is not None else None,
+                    "report": to_json_safe(rec.report or {}),
+                    "input_url": f"/api/jobs/{job_id}/files/input",
+                    "master_wav_url": f"/api/jobs/{job_id}/files/master",
+                    "exports": rec.exports,
+                    "streaming_notes": rec.streaming_notes,
+                })
+                # Wait for client to disconnect (navigating to result page)
+                # then schedule ephemeral cleanup
+                try:
+                    await websocket.receive_text()
+                except Exception:
+                    pass
+                break
+
+            elif rec.status == JobStatus.failed:
+                await websocket.send_json({
+                    "type": "failed",
+                    "message": rec.error or rec.message or "Processing failed",
+                })
+                break
+
+            await asyncio.sleep(0.5)
+
+    except WebSocketDisconnect:
+        pass
+    finally:
+        # For ephemeral jobs, schedule folder deletion after 10 min
+        # (gives result page time to load audio files before cleanup)
+        rec = await job_store.get(job_id)
+        if rec and rec.ephemeral:
+            await schedule_delete(job_id, delay_secs=600)
