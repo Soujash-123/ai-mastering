@@ -36,8 +36,6 @@ CMD ["node", "server.js"]
 FROM nginx:1.27-alpine AS nginx
 
 COPY nginx/default.conf /etc/nginx/conf.d/default.conf
-COPY --from=builder /app/.next /usr/share/nginx/html/_next
-# `public` may be absent in some projects; static files are served from .next/static
 
 EXPOSE 80
 
