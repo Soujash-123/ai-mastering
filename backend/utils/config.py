@@ -13,6 +13,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 _LOCAL_CORS_ORIGINS = (
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://kordstudio.duckdns.org",
+    "https://kordstudio.duckdns.org",
 )
 
 _PUBLIC_IP_ENDPOINTS = (
