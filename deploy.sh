@@ -85,7 +85,7 @@ start_services() {
 wait_for_services() {
     local attempt
     for attempt in $(seq 1 "${MAX_WAIT_RETRIES}"); do
-        if curl -fsS http://localhost:8000/api/health >/dev/null 2>&1 && curl -fsS http://localhost:3000 >/dev/null 2>&1; then
+        if curl -fsS http://localhost:8000/api/health >/dev/null 2>&1 && curl -fsS http://localhost >/dev/null 2>&1; then
             log INFO "Services are ready"
             return 0
         fi
@@ -99,7 +99,7 @@ wait_for_services() {
 show_status() {
     log INFO "Deployment status"
     dc ps 2>&1 | tee -a "${DEPLOYMENT_LOG}"
-    log INFO "Frontend: http://localhost:3000"
+    log INFO "Frontend: http://localhost"
     log INFO "Backend: http://localhost:8000"
     log INFO "API health: http://localhost:8000/api/health"
 }
