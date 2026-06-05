@@ -28,8 +28,11 @@ class JobRecord:
     report: Optional[dict[str, Any]] = None
     exports: list[dict[str, str]] = field(default_factory=list)
     streaming_notes: list[str] = field(default_factory=list)
+    streaming_previews: list[dict[str, str]] = field(default_factory=list)
     error: Optional[str] = None
     ephemeral: bool = False
+    duration_sec: Optional[float] = None
+    eta_seconds: Optional[float] = None
 
 
 class JobStore:
@@ -175,7 +178,10 @@ def _record_to_dict(rec: JobRecord) -> dict:
         "report": rec.report,
         "exports": rec.exports,
         "streaming_notes": rec.streaming_notes,
+        "streaming_previews": rec.streaming_previews,
         "error": rec.error,
+        "duration_sec": rec.duration_sec,
+        "eta_seconds": rec.eta_seconds,
     }
 
 
@@ -197,7 +203,10 @@ def _dict_to_record(d: dict) -> JobRecord:
         report=d.get("report"),
         exports=d.get("exports", []),
         streaming_notes=d.get("streaming_notes", []),
+        streaming_previews=d.get("streaming_previews", []),
         error=d.get("error"),
+        duration_sec=d.get("duration_sec"),
+        eta_seconds=d.get("eta_seconds"),
     )
     return rec
 

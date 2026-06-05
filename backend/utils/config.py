@@ -14,6 +14,8 @@ from datetime import date, datetime
 
 
 _LOCAL_CORS_ORIGINS = (
+    "http://localhost",
+    "http://127.0.0.1",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://kordstudio.duckdns.org",
@@ -25,7 +27,7 @@ _PUBLIC_IP_ENDPOINTS = (
     "https://ifconfig.me/ip",
 )
 
-_FRONTEND_PORTS = (3000,)
+_FRONTEND_PORTS = (80, 3000,)
 
 
 def _current_public_ip() -> Optional[str]:

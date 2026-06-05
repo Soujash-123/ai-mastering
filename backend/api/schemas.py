@@ -26,6 +26,8 @@ class JobStatusResponse(BaseModel):
     status: JobStatus
     progress: float = Field(ge=0.0, le=1.0)
     message: str = ""
+    duration_sec: Optional[float] = None
+    eta_seconds: Optional[float] = None
     updated_at: datetime
 
 
@@ -34,6 +36,14 @@ class ExportArtifact(BaseModel):
     format: str
     path: str
     download_url: str
+
+
+class StreamingPreview(BaseModel):
+    label: str
+    description: str
+    filename: str
+    category: str
+    preview_url: str
 
 
 class JobResultResponse(BaseModel):
@@ -47,3 +57,6 @@ class JobResultResponse(BaseModel):
     master_wav_url: str
     exports: list[ExportArtifact] = Field(default_factory=list)
     streaming_notes: list[str] = Field(default_factory=list)
+    streaming_previews: list[StreamingPreview] = Field(default_factory=list)
+    duration_sec: Optional[float] = None
+    eta_seconds: Optional[float] = None

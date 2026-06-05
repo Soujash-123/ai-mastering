@@ -43,6 +43,15 @@ export type JobResult = {
   master_wav_url: string;
   exports: { profile: string; format: string; path: string; download_url: string }[];
   streaming_notes: string[];
+  streaming_previews?: {
+    label: string;
+    description: string;
+    filename: string;
+    category: string;
+    preview_url: string;
+  }[];
+  duration_sec?: number;
+  eta_seconds?: number;
 };
 
 export async function createJob(file: File, targetPlatform: string, userIntent: string, ephemeral = true) {

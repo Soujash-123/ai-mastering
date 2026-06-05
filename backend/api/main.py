@@ -108,6 +108,8 @@ async def job_status(job_id: str) -> JobStatusResponse:
         status=rec.status,
         progress=rec.progress,
         message=rec.message or rec.error or "",
+        duration_sec=rec.duration_sec,
+        eta_seconds=rec.eta_seconds,
         updated_at=rec.updated_at,
     )
 
@@ -133,6 +135,9 @@ async def job_result(job_id: str) -> Union[JSONResponse, JobResultResponse]:
         master_wav_url=f"/api/jobs/{job_id}/files/master",
         exports=rec.exports,
         streaming_notes=rec.streaming_notes,
+        streaming_previews=rec.streaming_previews,
+        duration_sec=rec.duration_sec,
+        eta_seconds=rec.eta_seconds,
     )
 
 
@@ -164,7 +169,7 @@ async def job_file(job_id: str, kind: str) -> FileResponse:
         media = "audio/wav"
     elif kind == "master":
         path = rec.master_path
-        media = "audio/wav"
+        media = "audio/wav" if rec.master_path and rec.master_path.suffix.lower() == ".wav" else "audio/flac"
     else:
         raise HTTPException(status_code=404, detail="Unknown file kind")
     if not path or not path.exists():
@@ -187,6 +192,38 @@ async def delete_job(job_id: str) -> dict[str, str]:
     return {"status": "deleted"}
 
 
+@app.post("/api/cleanup")
+async def cleanup_jobs(max_age_minutes: int = 60) -> dict[str, int]:
+    """Delete completed jobs older than `max_age_minutes`, keeping active/queued jobs.
+
+    Intended to be called from a cron or external scheduler roughly once an hour.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=max_age_minutes)
+    removed = 0
+
+    # Walk jobs on disk to ensure we also see jobs that may have been evicted from memory
+    jobs_root = settings.data_dir / "jobs"
+    if jobs_root.exists():
+        for job_dir in jobs_root.iterdir():
+            if not job_dir.is_dir():
+                continue
+            job_id = job_dir.name
+            rec = await job_store.get(job_id)
+            if not rec:
+                # No in-memory record; treat as stale completed job
+                await delete_job_by_id(job_id)
+                removed += 1
+                continue
+
+            if rec.status in {JobStatus.completed, JobStatus.failed} and rec.updated_at < cutoff:
+                await delete_job_by_id(job_id)
+                removed += 1
+
+    return {"removed": removed}
+
+
 @app.websocket("/ws/jobs/{job_id}")
 async def ws_job_progress(websocket: WebSocket, job_id: str) -> None:
     """Stream job progress and final result over WebSocket."""
@@ -203,6 +240,8 @@ async def ws_job_progress(websocket: WebSocket, job_id: str) -> None:
                 "status": rec.status.value,
                 "progress": rec.progress,
                 "message": rec.message or "",
+                "duration_sec": rec.duration_sec,
+                "eta_seconds": rec.eta_seconds,
             })
 
             if rec.status == JobStatus.completed:
@@ -218,6 +257,9 @@ async def ws_job_progress(websocket: WebSocket, job_id: str) -> None:
                     "master_wav_url": f"/api/jobs/{job_id}/files/master",
                     "exports": rec.exports,
                     "streaming_notes": rec.streaming_notes,
+                    "streaming_previews": rec.streaming_previews,
+                    "duration_sec": rec.duration_sec,
+                    "eta_seconds": rec.eta_seconds,
                 })
                 # Wait for client to disconnect (navigating to result page)
                 # then schedule ephemeral cleanup
