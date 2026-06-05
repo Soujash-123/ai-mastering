@@ -12,6 +12,7 @@ from exports.pcm_export import export_variants, simulate_streaming_platforms
 from llm.intent import generate_mastering_plan
 from mastering.chain import master_file
 from mastering.safety import intent_to_safe_params
+from auth.permissions import can_access_simulations, duration_limit_message, max_upload_duration_sec
 from services.job_store import job_store
 from utils.config import get_settings
 
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 _WORKER_SEMAPHORE = asyncio.Semaphore(5)
 
 
-async def process_job(job_id: str, target_platform: str, user_intent: str) -> None:
+async def process_job(job_id: str, target_platform: str, user_intent: str, user_role: str = "ROLLOUT") -> None:
     settings = get_settings()
     rec = await job_store.get(job_id)
     if not rec or not rec.input_path:
@@ -39,8 +40,9 @@ async def process_job(job_id: str, target_platform: str, user_intent: str) -> No
             duration_sec = float(analysis.get("duration_sec") or 0.0)
             if duration_sec <= 0.0:
                 raise ValueError("Could not determine track duration.")
-            if duration_sec > 300.0:
-                raise ValueError("Tracks longer than 5 minutes are not supported.")
+            max_dur = max_upload_duration_sec(user_role)
+            if max_dur is not None and duration_sec > max_dur:
+                raise ValueError(duration_limit_message(user_role))
 
             duration_min = duration_sec / 60.0
             eta_seconds = float(pow(duration_min, 2) * 60.0)
@@ -90,7 +92,10 @@ async def process_job(job_id: str, target_platform: str, user_intent: str) -> No
             sim_dir = job_dir / "streaming_sim"
             logger.info("Job %s: export step started", job_id)
             exports = await asyncio.to_thread(export_variants, master_path, exports_dir)
-            notes, sim_previews = await asyncio.to_thread(simulate_streaming_platforms, master_path, sim_dir)
+            if can_access_simulations(user_role):
+                notes, sim_previews = await asyncio.to_thread(simulate_streaming_platforms, master_path, sim_dir)
+            else:
+                notes, sim_previews = [], []
 
             exports_public: list[dict[str, str]] = []
             for item in exports:

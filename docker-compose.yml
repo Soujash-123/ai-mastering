@@ -9,6 +9,10 @@ services:
     environment:
       - OPENAI_MASTERING_MODEL=${OPENAI_MASTERING_MODEL:-gpt-5.1}
       - AI_MASTERING_DATA_DIR=${AI_MASTERING_DATA_DIR:-/app/backend/data}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:////app/backend/data/app.db}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-replace_with_secure_secret}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-10080}
     expose:
       - "8000"
     ports:
@@ -23,6 +27,10 @@ services:
       target: runner
       args:
         NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-}
+        NEXT_PUBLIC_EMAILJS_SERVICE_ID: ${NEXT_PUBLIC_EMAILJS_SERVICE_ID:-}
+        NEXT_PUBLIC_EMAILJS_TEMPLATE_ID: ${NEXT_PUBLIC_EMAILJS_TEMPLATE_ID:-}
+        NEXT_PUBLIC_EMAILJS_PUBLIC_KEY: ${NEXT_PUBLIC_EMAILJS_PUBLIC_KEY:-}
+        NEXT_PUBLIC_ENABLE_EARLY_ACCESS_REQUESTS: ${NEXT_PUBLIC_ENABLE_EARLY_ACCESS_REQUESTS:-true}
     environment:
       - NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE:-}
     expose:

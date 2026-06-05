@@ -33,6 +33,7 @@ class JobRecord:
     ephemeral: bool = False
     duration_sec: Optional[float] = None
     eta_seconds: Optional[float] = None
+    user_id: Optional[int] = None
 
 
 class JobStore:
@@ -42,12 +43,12 @@ class JobStore:
         self._memory_cap = 200
         self._pending_deletes: dict[str, asyncio.Task] = {}
 
-    async def create_job(self, data_dir: Path, ephemeral: bool = False) -> JobRecord:
+    async def create_job(self, data_dir: Path, ephemeral: bool = False, user_id: int | None = None) -> JobRecord:
         async with self._lock:
             job_id = str(uuid.uuid4())
             job_dir = data_dir / "jobs" / job_id
             job_dir.mkdir(parents=True, exist_ok=True)
-            rec = JobRecord(job_id=job_id, input_path=job_dir / "input.wav", ephemeral=ephemeral)
+            rec = JobRecord(job_id=job_id, input_path=job_dir / "input.wav", ephemeral=ephemeral, user_id=user_id)
             self._jobs[job_id] = rec
             if not ephemeral:
                 try:
@@ -182,6 +183,7 @@ def _record_to_dict(rec: JobRecord) -> dict:
         "error": rec.error,
         "duration_sec": rec.duration_sec,
         "eta_seconds": rec.eta_seconds,
+        "user_id": rec.user_id,
     }
 
 
@@ -207,6 +209,7 @@ def _dict_to_record(d: dict) -> JobRecord:
         error=d.get("error"),
         duration_sec=d.get("duration_sec"),
         eta_seconds=d.get("eta_seconds"),
+        user_id=d.get("user_id"),
     )
     return rec
 

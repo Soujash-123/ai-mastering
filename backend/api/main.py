@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import sys
 from pathlib import Path
-from typing import Union
+from typing import Annotated, Union
 
 # Allow `uvicorn api.main:app` from backend/ without PYTHONPATH tweaks
 _BACKEND_ROOT = Path(__file__).resolve().parents[1]
@@ -12,11 +12,19 @@ if str(_BACKEND_ROOT) not in sys.path:
 
 import numpy as np
 import soundfile as sf
-from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
-
 from api.schemas import JobCreateResponse, JobResultResponse, JobStatus, JobStatusResponse
+from auth.admin_router import router as admin_router
+from auth.database import init_db
+from auth.dependencies import get_current_user, require_roles
+from auth.early_access_router import router as early_access_router
+from auth.models import User
+from auth.permissions import can_access_simulations, duration_limit_message, max_upload_duration_sec
+from auth.router import router as auth_router
+from auth.schemas import UserRole
+from auth.security import decode_access_token
 from services.job_store import job_store, delete_job_by_id, schedule_delete
 from utils.config import get_settings
 from utils.json_safe import to_json_safe
@@ -28,6 +36,15 @@ configure_logging()
 app = FastAPI(title="AI Mastering API", version="0.1.0")
 settings = get_settings()
 
+app.include_router(auth_router)
+app.include_router(early_access_router)
+app.include_router(admin_router)
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    init_db()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
@@ -37,6 +54,22 @@ app.add_middleware(
 )
 
 _ALLOWED = frozenset({".wav", ".flac"})
+
+
+def _probe_duration_sec(path: Path) -> float:
+    info = sf.info(str(path))
+    return float(info.duration)
+
+
+def _assert_job_access(rec, user: User) -> None:
+    if rec.user_id is not None and rec.user_id != user.id and user.role != UserRole.ADMIN.value:
+        raise HTTPException(status_code=403, detail="Not authorized for this job")
+
+
+def _streaming_payload(rec, user: User) -> tuple[list[str], list[dict[str, str]]]:
+    if can_access_simulations(user.role):
+        return rec.streaming_notes, rec.streaming_previews
+    return [], []
 
 
 def _normalize_upload_to_job_wav(src: bytes, dest_wav: Path, original_suffix: str) -> None:
@@ -69,6 +102,7 @@ def _normalize_upload_to_job_wav(src: bytes, dest_wav: Path, original_suffix: st
 @app.post("/api/jobs", response_model=JobCreateResponse)
 async def create_job(
     background_tasks: BackgroundTasks,
+    user: Annotated[User, Depends(get_current_user)],
     file: UploadFile = File(...),
     target_platform: str = Form("Spotify"),
     user_intent: str = Form(""),
@@ -84,25 +118,35 @@ async def create_job(
             detail="Only WAV and FLAC uploads are supported (no transcoding pipeline).",
         )
 
-    rec = await job_store.create_job(settings.data_dir, ephemeral=ephemeral)
+    rec = await job_store.create_job(settings.data_dir, ephemeral=ephemeral, user_id=user.id)
     assert rec.input_path is not None
 
     try:
         content = await file.read()
         await file.close()
         _normalize_upload_to_job_wav(content, rec.input_path, suffix)
+        duration_sec = _probe_duration_sec(rec.input_path)
+        max_dur = max_upload_duration_sec(user.role)
+        if max_dur is not None and duration_sec > max_dur:
+            await delete_job_by_id(rec.job_id)
+            raise HTTPException(status_code=400, detail=duration_limit_message(user.role))
     except ValueError as exc:
+        await delete_job_by_id(rec.job_id)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    background_tasks.add_task(process_job, rec.job_id, target_platform, user_intent)
+    background_tasks.add_task(process_job, rec.job_id, target_platform, user_intent, user.role)
     return JobCreateResponse(job_id=rec.job_id)
 
 
 @app.get("/api/jobs/{job_id}/status", response_model=JobStatusResponse)
-async def job_status(job_id: str) -> JobStatusResponse:
+async def job_status(
+    job_id: str,
+    user: Annotated[User, Depends(get_current_user)],
+) -> JobStatusResponse:
     rec = await job_store.get(job_id)
     if not rec:
         raise HTTPException(status_code=404, detail="Job not found")
+    _assert_job_access(rec, user)
     return JobStatusResponse(
         job_id=rec.job_id,
         status=rec.status,
@@ -115,15 +159,20 @@ async def job_status(job_id: str) -> JobStatusResponse:
 
 
 @app.get("/api/jobs/{job_id}/result", response_model=JobResultResponse)
-async def job_result(job_id: str) -> Union[JSONResponse, JobResultResponse]:
+async def job_result(
+    job_id: str,
+    user: Annotated[User, Depends(get_current_user)],
+) -> Union[JSONResponse, JobResultResponse]:
     rec = await job_store.get(job_id)
     if not rec:
         raise HTTPException(status_code=404, detail="Job not found")
+    _assert_job_access(rec, user)
     if rec.status != JobStatus.completed:
         return JSONResponse({"detail": "Job not completed", "status": rec.status.value}, status_code=409)
     if not rec.master_path:
         raise HTTPException(status_code=500, detail="Missing master path")
 
+    notes, previews = _streaming_payload(rec, user)
     return JobResultResponse(
         job_id=rec.job_id,
         status=rec.status,
@@ -134,15 +183,28 @@ async def job_result(job_id: str) -> Union[JSONResponse, JobResultResponse]:
         input_url=f"/api/jobs/{job_id}/files/input",
         master_wav_url=f"/api/jobs/{job_id}/files/master",
         exports=rec.exports,
-        streaming_notes=rec.streaming_notes,
-        streaming_previews=rec.streaming_previews,
+        streaming_notes=notes,
+        streaming_previews=previews,
         duration_sec=rec.duration_sec,
         eta_seconds=rec.eta_seconds,
     )
 
 
 @app.get("/api/jobs/{job_id}/artifacts/{file_path:path}")
-async def job_artifact(job_id: str, file_path: str) -> FileResponse:
+async def job_artifact(
+    job_id: str,
+    file_path: str,
+    user: Annotated[User, Depends(get_current_user)],
+) -> FileResponse:
+    rec = await job_store.get(job_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Job not found")
+    _assert_job_access(rec, user)
+    if not can_access_simulations(user.role) and file_path.replace("\\", "/").startswith("streaming_sim/"):
+        raise HTTPException(
+            status_code=403,
+            detail="This feature is currently available only to Early Access users.",
+        )
     base = (settings.data_dir / "jobs" / job_id).resolve()
     target = (base / file_path).resolve()
     try:
@@ -160,10 +222,15 @@ async def job_artifact(job_id: str, file_path: str) -> FileResponse:
 
 
 @app.get("/api/jobs/{job_id}/files/{kind}")
-async def job_file(job_id: str, kind: str) -> FileResponse:
+async def job_file(
+    job_id: str,
+    kind: str,
+    user: Annotated[User, Depends(get_current_user)],
+) -> FileResponse:
     rec = await job_store.get(job_id)
     if not rec:
         raise HTTPException(status_code=404, detail="Job not found")
+    _assert_job_access(rec, user)
     if kind == "input":
         path = rec.input_path
         media = "audio/wav"
@@ -183,17 +250,24 @@ async def health() -> dict[str, str]:
 
 
 @app.delete("/api/jobs/{job_id}")
-async def delete_job(job_id: str) -> dict[str, str]:
+async def delete_job(
+    job_id: str,
+    user: Annotated[User, Depends(get_current_user)],
+) -> dict[str, str]:
     """Explicitly delete a job and its files (called by frontend on page unload)."""
     rec = await job_store.get(job_id)
     if not rec:
         return {"status": "not_found"}
+    _assert_job_access(rec, user)
     await delete_job_by_id(job_id)
     return {"status": "deleted"}
 
 
 @app.post("/api/cleanup")
-async def cleanup_jobs(max_age_minutes: int = 60) -> dict[str, int]:
+async def cleanup_jobs(
+    _: Annotated[User, Depends(require_roles(UserRole.ADMIN))],
+    max_age_minutes: int = 60,
+) -> dict[str, int]:
     """Delete completed jobs older than `max_age_minutes`, keeping active/queued jobs.
 
     Intended to be called from a cron or external scheduler roughly once an hour.
@@ -225,8 +299,27 @@ async def cleanup_jobs(max_age_minutes: int = 60) -> dict[str, int]:
 
 
 @app.websocket("/ws/jobs/{job_id}")
-async def ws_job_progress(websocket: WebSocket, job_id: str) -> None:
+async def ws_job_progress(websocket: WebSocket, job_id: str, token: str | None = None) -> None:
     """Stream job progress and final result over WebSocket."""
+    if not token:
+        await websocket.close(code=1008, reason="Missing token")
+        return
+    try:
+        payload = decode_access_token(token)
+        user_id = int(payload["sub"])
+        user_role = payload.get("role", UserRole.ROLLOUT.value)
+    except HTTPException:
+        await websocket.close(code=1008, reason="Invalid token")
+        return
+
+    rec = await job_store.get(job_id)
+    if not rec:
+        await websocket.close(code=1008, reason="Job not found")
+        return
+    if rec.user_id is not None and rec.user_id != user_id and user_role != UserRole.ADMIN.value:
+        await websocket.close(code=1008, reason="Forbidden")
+        return
+
     await websocket.accept()
     try:
         while True:
@@ -245,6 +338,11 @@ async def ws_job_progress(websocket: WebSocket, job_id: str) -> None:
             })
 
             if rec.status == JobStatus.completed:
+                notes, previews = (
+                    (rec.streaming_notes, rec.streaming_previews)
+                    if can_access_simulations(user_role)
+                    else ([], [])
+                )
                 await websocket.send_json({
                     "type": "result",
                     "job_id": rec.job_id,
@@ -256,8 +354,8 @@ async def ws_job_progress(websocket: WebSocket, job_id: str) -> None:
                     "input_url": f"/api/jobs/{job_id}/files/input",
                     "master_wav_url": f"/api/jobs/{job_id}/files/master",
                     "exports": rec.exports,
-                    "streaming_notes": rec.streaming_notes,
-                    "streaming_previews": rec.streaming_previews,
+                    "streaming_notes": notes,
+                    "streaming_previews": previews,
                     "duration_sec": rec.duration_sec,
                     "eta_seconds": rec.eta_seconds,
                 })

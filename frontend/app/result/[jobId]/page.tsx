@@ -3,9 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { RestrictedFeature } from "@/components/auth/RestrictedFeature";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { MasteringIntensityBars } from "@/components/mastering/MasteringIntensityBars";
 import { StreamingSimulator } from "@/components/preview/StreamingSimulator";
 import { apiUrl, deleteJob, fetchResult, type JobResult } from "@/lib/api";
+import { canAccessSimulations } from "@/lib/auth";
 
 async function drawWaveform(canvas: HTMLCanvasElement, audioUrl: string, color: string) {
   const ctx = canvas.getContext("2d");
@@ -68,6 +71,7 @@ function fmtTime(s: number) {
 export default function ResultPage() {
   const params = useParams<{ jobId: string }>();
   const jobId = params.jobId;
+  const { user } = useAuth();
   const [data, setData] = useState<JobResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState(false);
@@ -374,9 +378,10 @@ export default function ResultPage() {
       )}
 
       {/* Streaming simulator — preview only */}
-      {(data.streaming_previews?.length ?? 0) > 0 && (
+      {user && canAccessSimulations(user.role) && (data.streaming_previews?.length ?? 0) > 0 && (
         <StreamingSimulator previews={data.streaming_previews!} notes={data.streaming_notes} />
       )}
+      {user && !canAccessSimulations(user.role) && <RestrictedFeature />}
 
       {/* Analysis grid */}
       <div className="grid gap-5 lg:grid-cols-2">

@@ -11,6 +11,10 @@ soundfile>=0.12.1
 librosa>=0.10.2
 torch>=2.2.0
 pyloudnorm>=0.1.1
+sqlalchemy>=2.0.36
+bcrypt>=4.2.0
+PyJWT>=2.9.0
+email-validator>=2.2.0
 
 # Optional: Essentia (heavy); analysis degrades gracefully if missing
 # essentia-tensorflow>=2.1b6

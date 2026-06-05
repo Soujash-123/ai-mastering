@@ -96,6 +96,11 @@ wait_for_services() {
     exit 1
 }
 
+seed_users() {
+    log INFO "Seeding users into the database"
+    dc exec backend python scripts/seed_early_access.py 2>&1 | tee -a "${DEPLOYMENT_LOG}"
+}
+
 show_status() {
     log INFO "Deployment status"
     dc ps 2>&1 | tee -a "${DEPLOYMENT_LOG}"
@@ -111,6 +116,7 @@ main() {
     build_images
     start_services
     wait_for_services
+    seed_users
     show_status
 }
 

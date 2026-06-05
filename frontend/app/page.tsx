@@ -2,7 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { createJob } from "@/lib/api";
+import {
+  durationLimitMessage,
+  getAudioDurationSec,
+  maxUploadDurationSec,
+  roleBadgeLabel,
+} from "@/lib/auth";
 
 const PLATFORMS = [
   { value: "Spotify", label: "Streaming (Default)" },
@@ -57,6 +64,7 @@ function SideBars({ side }: { side: "left" | "right" }) {
 
 export default function UploadPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -80,11 +88,16 @@ export default function UploadPage() {
   }, []);
 
   const handleMaster = useCallback(async () => {
-    if (!selectedFile) return;
+    if (!selectedFile || !user) return;
     setBusy(true);
     setProgress(0);
     setError(null);
     try {
+      const duration = await getAudioDurationSec(selectedFile);
+      const maxDur = maxUploadDurationSec(user.role);
+      if (maxDur !== null && duration > maxDur) {
+        throw new Error(durationLimitMessage(user.role));
+      }
       await new Promise<void>((r) => setTimeout(r, 40));
       setProgress(0.3);
       const { job_id } = await createJob(selectedFile, platform, intentValue);
@@ -94,7 +107,7 @@ export default function UploadPage() {
       setError(e instanceof Error ? e.message : "Upload failed");
       setBusy(false);
     }
-  }, [selectedFile, platform, intentValue, router]);
+  }, [selectedFile, platform, intentValue, router, user]);
 
   const fmt = (b: number) => (b < 1048576 ? `${(b / 1024).toFixed(0)} KB` : `${(b / 1048576).toFixed(1)} MB`);
 
@@ -123,6 +136,15 @@ export default function UploadPage() {
             Deep spectral analysis → GPT mastering intent → adaptive DSP chain →{" "}
             streaming-ready exports. No presets. No compromise.
           </p>
+          {user && (
+            <p className="text-[11px] text-mist-200/40">
+              Plan: <span className="font-semibold text-accent/80">{roleBadgeLabel(user.role)}</span>
+              {" · "}
+              {maxUploadDurationSec(user.role) === null
+                ? "No upload length limit"
+                : `Max track length: ${Math.floor((maxUploadDurationSec(user.role) ?? 0) / 60)} min`}
+            </p>
+          )}
         </header>
 
         {/* Drop zone */}

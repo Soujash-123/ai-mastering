@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     # If unset or empty, use a dated temp folder (refreshed daily).
     ai_mastering_data_dir: Optional[Path] = None
 
+    database_url: str = "sqlite:///./app.db"
+    jwt_secret_key: str = "replace_with_secure_secret"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 10080
+
     @property
     def data_dir(self) -> Path:
         # Explicit env-configured path wins

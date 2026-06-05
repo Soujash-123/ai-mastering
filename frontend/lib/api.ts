@@ -1,3 +1,5 @@
+import { authHeaders, getToken } from "./auth";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
 
 export function apiUrl(path: string) {
@@ -60,35 +62,37 @@ export async function createJob(file: File, targetPlatform: string, userIntent: 
   fd.append("target_platform", targetPlatform);
   fd.append("user_intent", userIntent);
   fd.append("ephemeral", String(ephemeral));
-  const res = await fetch(apiUrl("/api/jobs"), { method: "POST", body: fd });
+  const res = await fetch(apiUrl("/api/jobs"), { method: "POST", headers: authHeaders(), body: fd });
   if (!res.ok) throw new Error(await res.text());
   return (await res.json()) as { job_id: string };
 }
 
 export async function fetchStatus(jobId: string) {
-  const res = await fetch(apiUrl(`/api/jobs/${jobId}/status`), { cache: "no-store" });
+  const res = await fetch(apiUrl(`/api/jobs/${jobId}/status`), { headers: authHeaders(), cache: "no-store" });
   if (!res.ok) throw new Error(await res.text());
   return (await res.json()) as JobStatus;
 }
 
 export async function fetchResult(jobId: string) {
-  const res = await fetch(apiUrl(`/api/jobs/${jobId}/result`), { cache: "no-store" });
+  const res = await fetch(apiUrl(`/api/jobs/${jobId}/result`), { headers: authHeaders(), cache: "no-store" });
   if (res.status === 409) return null;
   if (!res.ok) throw new Error(await res.text());
   return (await res.json()) as JobResult;
 }
 
 export function wsUrl(path: string): string {
+  const token = getToken();
+  const qs = token ? `?token=${encodeURIComponent(token)}` : "";
   const base = process.env.NEXT_PUBLIC_API_BASE || "";
-  if (base) return base.replace(/^http/, "ws") + path;
-  if (typeof window === "undefined") return path;
+  if (base) return base.replace(/^http/, "ws") + path + qs;
+  if (typeof window === "undefined") return path + qs;
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${window.location.host}${path}`;
+  return `${proto}//${window.location.host}${path}${qs}`;
 }
 
 export async function deleteJob(jobId: string): Promise<void> {
   try {
-    await fetch(apiUrl(`/api/jobs/${jobId}`), { method: "DELETE", keepalive: true });
+    await fetch(apiUrl(`/api/jobs/${jobId}`), { method: "DELETE", headers: authHeaders(), keepalive: true });
   } catch {
     /* best-effort */
   }
