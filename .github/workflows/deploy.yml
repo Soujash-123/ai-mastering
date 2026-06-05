@@ -21,6 +21,10 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_MASTERING_MODEL: ${{ secrets.OPENAI_MASTERING_MODEL }}
       AI_MASTERING_DATA_DIR: ${{ secrets.AI_MASTERING_DATA_DIR }}
+      JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+      NEXT_PUBLIC_EMAILJS_SERVICE_ID: ${{ secrets.NEXT_PUBLIC_EMAILJS_SERVICE_ID }}
+      NEXT_PUBLIC_EMAILJS_TEMPLATE_ID: ${{ secrets.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID }}
+      NEXT_PUBLIC_EMAILJS_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY }}
 
     steps:
       - name: Checkout
@@ -68,8 +72,8 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          backend_env_b64="$(printf 'OPENAI_API_KEY=%s\nOPENAI_MASTERING_MODEL=%s\nAI_MASTERING_DATA_DIR=%s\n' "${OPENAI_API_KEY}" "${OPENAI_MASTERING_MODEL:-gpt-5.1}" "${AI_MASTERING_DATA_DIR:-/app/backend/data}" | base64 -w0)"
-          root_env_b64="$(printf 'OPENAI_API_KEY=%s\nOPENAI_MASTERING_MODEL=%s\nAI_MASTERING_DATA_DIR=%s\nNEXT_PUBLIC_API_BASE=%s\n' "${OPENAI_API_KEY}" "${OPENAI_MASTERING_MODEL:-gpt-5.1}" "${AI_MASTERING_DATA_DIR:-/app/backend/data}" "http://${EC2_HOST}:8000" | base64 -w0)"
+          backend_env_b64="$(printf 'OPENAI_API_KEY=%s\nOPENAI_MASTERING_MODEL=%s\nAI_MASTERING_DATA_DIR=%s\nJWT_SECRET_KEY=%s\n' "${OPENAI_API_KEY}" "${OPENAI_MASTERING_MODEL:-gpt-5.1}" "${AI_MASTERING_DATA_DIR:-/app/backend/data}" "${JWT_SECRET_KEY}" | base64 -w0)"
+          root_env_b64="$(printf 'OPENAI_API_KEY=%s\nOPENAI_MASTERING_MODEL=%s\nAI_MASTERING_DATA_DIR=%s\nNEXT_PUBLIC_API_BASE=%s\nNEXT_PUBLIC_EMAILJS_SERVICE_ID=%s\nNEXT_PUBLIC_EMAILJS_TEMPLATE_ID=%s\nNEXT_PUBLIC_EMAILJS_PUBLIC_KEY=%s\n' "${OPENAI_API_KEY}" "${OPENAI_MASTERING_MODEL:-gpt-5.1}" "${AI_MASTERING_DATA_DIR:-/app/backend/data}" "http://${EC2_HOST}:8000" "${NEXT_PUBLIC_EMAILJS_SERVICE_ID}" "${NEXT_PUBLIC_EMAILJS_TEMPLATE_ID}" "${NEXT_PUBLIC_EMAILJS_PUBLIC_KEY}" | base64 -w0)"
 
           ssh "${EC2_USER}@${EC2_HOST}" "
             set -Eeuo pipefail
