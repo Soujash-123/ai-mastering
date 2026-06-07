@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+myenv/
+
+# Env & secrets
+.env
+.env.local
+*.pem
+backend/.env
+deployment-*.log
+
+# Build & cache
+.next/
+out/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Data & uploads
+data/
+uploads/
+*.wav
+*.flac
+*.mp3
+*.aac
+*.m4a
+*.ogg
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

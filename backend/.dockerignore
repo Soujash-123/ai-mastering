@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.log
+.env
+myenv/
+venv/
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+data/
+Dockerfile
+.dockerignore

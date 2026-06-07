@@ -1,0 +1,83 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      EC2_HOST: ${{ secrets.EC2_HOST }}
+      EC2_USER: ${{ secrets.EC2_USER }}
+      EC2_APP_DIR: ${{ secrets.EC2_APP_DIR }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_MASTERING_MODEL: ${{ secrets.OPENAI_MASTERING_MODEL }}
+      AI_MASTERING_DATA_DIR: ${{ secrets.AI_MASTERING_DATA_DIR }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [ -z "${EC2_HOST}" ] || [ -z "${EC2_USER}" ] || [ -z "${EC2_APP_DIR}" ] || [ -z "${OPENAI_API_KEY}" ]; then
+            echo "Missing one or more required secrets: EC2_HOST, EC2_USER, EC2_APP_DIR, OPENAI_API_KEY"
+            exit 1
+          fi
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          set -Eeuo pipefail
+          if [ -z "${EC2_SSH_KEY}" ]; then
+            echo "Missing required secret: EC2_SSH_KEY"
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "${EC2_SSH_KEY}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${EC2_HOST}" >> ~/.ssh/known_hosts
+
+      - name: Sync repository to EC2
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          tar \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='backend/.venv' \
+            --exclude='frontend/node_modules' \
+            --exclude='backend/data' \
+            --exclude='deployment-*.log' \
+            -czf - . | ssh "${EC2_USER}@${EC2_HOST}" "mkdir -p '${EC2_APP_DIR}' && tar -xzf - -C '${EC2_APP_DIR}'"
+
+      - name: Deploy on EC2
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          backend_env_b64="$(printf 'OPENAI_API_KEY=%s\nOPENAI_MASTERING_MODEL=%s\nAI_MASTERING_DATA_DIR=%s\n' "${OPENAI_API_KEY}" "${OPENAI_MASTERING_MODEL:-gpt-5.1}" "${AI_MASTERING_DATA_DIR:-/app/backend/data}" | base64 -w0)"
+          root_env_b64="$(printf 'OPENAI_API_KEY=%s\nOPENAI_MASTERING_MODEL=%s\nAI_MASTERING_DATA_DIR=%s\nNEXT_PUBLIC_API_BASE=%s\n' "${OPENAI_API_KEY}" "${OPENAI_MASTERING_MODEL:-gpt-5.1}" "${AI_MASTERING_DATA_DIR:-/app/backend/data}" "http://${EC2_HOST}:8000" | base64 -w0)"
+
+          ssh "${EC2_USER}@${EC2_HOST}" "
+            set -Eeuo pipefail
+            cd '${EC2_APP_DIR}'
+            mkdir -p backend
+            echo '${backend_env_b64}' | base64 -d > backend/.env
+            echo '${root_env_b64}' | base64 -d > .env
+            chmod 600 backend/.env .env
+            chmod +x ./deploy.sh
+            ./deploy.sh
+          "
