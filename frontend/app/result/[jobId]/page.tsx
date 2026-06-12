@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { MasteringIntensityBars } from "@/components/mastering/MasteringIntensityBars";
 import { apiUrl, deleteJob, fetchResult, type JobResult } from "@/lib/api";
+import { getTier, getTierConfig, type UserTier } from "@/lib/tier";
 
 async function drawWaveform(canvas: HTMLCanvasElement, audioUrl: string, color: string) {
   const ctx = canvas.getContext("2d");
@@ -79,6 +80,14 @@ export default function ResultPage() {
   const [masterBars, setMasterBars] = useState<number[]>([]);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [tier, setTierState] = useState<UserTier>("rollout");
+
+  // Hydrate tier from localStorage
+  useEffect(() => {
+    setTierState(getTier());
+  }, []);
+
+  const tierCfg = getTierConfig(tier);
 
   const urls = useMemo(() => {
     if (!data) return null;
@@ -198,7 +207,7 @@ export default function ResultPage() {
   const analysis = data.analysis as Record<string, unknown>;
   const safeIntent = data.safe_intent as Record<string, unknown>;
   const intLufs = analysis?.integrated_lufs != null ? `${Number(analysis.integrated_lufs).toFixed(1)} LUFS` : "—";
-  const tgtLufs = (safeIntent?.loudness_strategy as Record<string,unknown>)?.target_lufs != null ? `${Number((safeIntent.loudness_strategy as Record<string,unknown>).target_lufs).toFixed(1)} LUFS` : "—";
+  const tgtLufs = (safeIntent?.loudness_strategy as Record<string, unknown>)?.target_lufs != null ? `${Number((safeIntent.loudness_strategy as Record<string, unknown>).target_lufs).toFixed(1)} LUFS` : "—";
 
   return (
     <main className="flex flex-col gap-6 py-8">
@@ -242,6 +251,7 @@ export default function ResultPage() {
 
           {/* Action buttons */}
           <div className="flex flex-wrap gap-3">
+            {/* Download — all tiers */}
             <a
               href={urls.out}
               download
@@ -253,28 +263,43 @@ export default function ResultPage() {
               </svg>
               Download Master
             </a>
-            <div className="flex items-center gap-2.5 rounded-2xl border border-white/[0.09] bg-white/[0.04] px-4 py-2.5">
-              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="text-mist-200/45">
-                <path d="M6.5 2v9M3 5.5H1M12 5.5h-2M3 7.5H1M12 7.5h-2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-              </svg>
-              <span className="text-sm text-mist-200/60">Compare</span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={showComparison}
-                onClick={() => setShowComparison((v) => !v)}
-                className="relative ml-1 h-5 w-9 rounded-full border transition-all duration-300"
-                style={{
-                  background: showComparison ? "rgba(110,231,255,0.2)" : "rgba(255,255,255,0.07)",
-                  borderColor: showComparison ? "rgba(110,231,255,0.50)" : "rgba(255,255,255,0.18)",
-                }}
+
+            {/* Comparison toggle — Early Access only */}
+            {tierCfg.canPlaySimulations ? (
+              <div className="flex items-center gap-2.5 rounded-2xl border border-white/[0.09] bg-white/[0.04] px-4 py-2.5">
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="text-mist-200/45">
+                  <path d="M6.5 2v9M3 5.5H1M12 5.5h-2M3 7.5H1M12 7.5h-2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                </svg>
+                <span className="text-sm text-mist-200/60">Compare</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={showComparison}
+                  onClick={() => setShowComparison((v) => !v)}
+                  className="relative ml-1 h-5 w-9 rounded-full border transition-all duration-300"
+                  style={{
+                    background: showComparison ? "rgba(110,231,255,0.2)" : "rgba(255,255,255,0.07)",
+                    borderColor: showComparison ? "rgba(110,231,255,0.50)" : "rgba(255,255,255,0.18)",
+                  }}
+                >
+                  <span
+                    className="absolute top-0.5 block h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-300"
+                    style={{ left: "2px", transform: showComparison ? "translateX(16px)" : "translateX(0)" }}
+                  />
+                </button>
+              </div>
+            ) : (
+              <div
+                title="Available for Early Access users"
+                className="flex cursor-not-allowed items-center gap-2.5 rounded-2xl border border-white/[0.05] bg-white/[0.02] px-4 py-2.5 opacity-40"
               >
-                <span
-                  className="absolute top-0.5 block h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-300"
-                  style={{ left: "2px", transform: showComparison ? "translateX(16px)" : "translateX(0)" }}
-                />
-              </button>
-            </div>
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="text-mist-200/30">
+                  <path d="M6.5 2v9M3 5.5H1M12 5.5h-2M3 7.5H1M12 7.5h-2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                </svg>
+                <span className="text-sm text-mist-200/30">Compare</span>
+                <span className="ml-1 rounded-full border border-violet/30 px-2 py-0.5 text-[8px] font-bold uppercase tracking-widest text-violet/60">EA</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -514,23 +539,47 @@ export default function ResultPage() {
         </div>
       )}
 
-      {/* Streaming notes */}
+      {/* Streaming notes — Early Access only */}
       {data.streaming_notes.length > 0 && (
-        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
-          <p className="mb-4 text-[9px] font-bold uppercase tracking-[0.22em] text-mist-200/38">
-            Streaming & Device Simulations
-          </p>
-          <ul className="space-y-2.5">
-            {data.streaming_notes.map((n, i) => (
-              <li key={i} className="flex items-start gap-3 text-xs text-mist-200/65">
-                <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="mt-0.5 shrink-0 text-accent/60">
-                  <path d="M2.5 6.5l3 3 5-5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                {n}
-              </li>
-            ))}
-          </ul>
-        </div>
+        tierCfg.canPlaySimulations ? (
+          <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
+            <p className="mb-4 text-[9px] font-bold uppercase tracking-[0.22em] text-mist-200/38">
+              Streaming &amp; Device Simulations
+            </p>
+            <ul className="space-y-2.5">
+              {data.streaming_notes.map((n, i) => (
+                <li key={i} className="flex items-start gap-3 text-xs text-mist-200/65">
+                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="mt-0.5 shrink-0 text-accent/60">
+                    <path d="M2.5 6.5l3 3 5-5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  {n}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          /* Locked for Rollout users */
+          <div className="rounded-2xl border border-white/[0.05] bg-white/[0.01] p-5">
+            <div className="flex items-center justify-between">
+              <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-mist-200/22">
+                Streaming &amp; Device Simulations
+              </p>
+              <span className="rounded-full border border-violet/25 bg-violet/[0.06] px-2 py-0.5 text-[8px] font-bold uppercase tracking-widest text-violet/55">
+                Early Access
+              </span>
+            </div>
+            <div className="mt-4 flex flex-col items-center gap-3 rounded-xl border border-white/[0.04] bg-ink-950/40 py-6 text-center">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-mist-200/20">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="currentColor" strokeWidth="1.3" />
+                <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <p className="text-xs font-semibold text-mist-200/30">Simulations locked</p>
+              <p className="text-[10px] text-mist-200/22">
+                Switch to Early Access to see how your master translates across platforms and devices.
+              </p>
+            </div>
+          </div>
+        )
       )}
 
       {/* Footer tagline */}
