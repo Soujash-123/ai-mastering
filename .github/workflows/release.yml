@@ -51,17 +51,16 @@ jobs:
             exit 1
           fi
 
-          echo "RELEASE_PAT found."
-
-      - name: Push to Production Repository
+      - name: Configure target remote
         env:
           RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
         run: |
-          git fetch https://x-access-token:${RELEASE_PAT}@github.com/Soujash-123/ai-mastering.git main || true
+          git remote remove target || true
+          git remote add target https://x-access-token:${RELEASE_PAT}@github.com/Soujash-123/ai-mastering.git
 
-          git push --force-with-lease \
-            https://x-access-token:${RELEASE_PAT}@github.com/Soujash-123/ai-mastering.git \
-            HEAD:main
+      - name: Force sync production repository (first sync)
+        run: |
+          git push --force target HEAD:main
 
       - name: Create Release Tag
         run: |
@@ -73,9 +72,5 @@ jobs:
           git tag -a "v${RELEASE_VERSION}" -m "${RELEASE_MESSAGE}"
 
       - name: Push Release Tag
-        env:
-          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
         run: |
-          git push \
-            https://x-access-token:${RELEASE_PAT}@github.com/Soujash-123/ai-mastering.git \
-            "v${RELEASE_VERSION}"
+          git push target "v${RELEASE_VERSION}"
