@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Release version'
+        required: true
+      release_message:
+        description: 'Optional release message'
+        required: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Configure git for release push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote add target https://x-access-token:${{ secrets.RELEASE_PAT }}@github.com/Soujash-123/ai-mastering.git
+
+      - name: Set release metadata
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          release_version="${{ github.event.inputs.release_version }}"
+          release_message="${{ github.event.inputs.release_message }}"
+          if [ -z "$release_message" ]; then
+            release_message="Release $release_version"
+          fi
+          echo "RELEASE_VERSION=$release_version" >> $GITHUB_ENV
+          echo "RELEASE_MESSAGE=$release_message" >> $GITHUB_ENV
+
+      - name: Push main branch to target repository
+        run: |
+          git push --force-with-lease target main:main
+          git tag -a "v${RELEASE_VERSION}" -m "${RELEASE_MESSAGE}"
+          git push target "v${RELEASE_VERSION}"
