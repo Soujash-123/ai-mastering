@@ -18,8 +18,8 @@ jobs:
       - name: Checkout source repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
           ref: main
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Configure Git
@@ -46,14 +46,12 @@ jobs:
         env:
           RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
         run: |
-          echo "Checking RELEASE_PAT..."
-
           if [ -z "$RELEASE_PAT" ]; then
             echo "❌ RELEASE_PAT is EMPTY!"
             exit 1
           fi
 
-          echo "✅ RELEASE_PAT exists."
+          echo "✅ RELEASE_PAT found."
           echo "PAT length: ${#RELEASE_PAT}"
 
       - name: Configure target remote
@@ -63,22 +61,36 @@ jobs:
           git remote remove target || true
           git remote add target https://x-access-token:${RELEASE_PAT}@github.com/Soujash-123/ai-mastering.git
 
-      - name: Debug Git configuration
+      - name: Debug remotes
         run: |
           echo "===== REMOTES ====="
           git remote -v
-
           echo ""
           echo "===== GIT CONFIG ====="
           git config --list --show-origin
 
-          echo ""
-          echo "===== CURRENT BRANCH ====="
-          git branch
+      - name: Test GitHub API authentication
+        env:
+          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
+        run: |
+          echo "===== AUTHENTICATED USER ====="
+          curl -i \
+            -H "Authorization: Bearer ${RELEASE_PAT}" \
+            https://api.github.com/user
 
           echo ""
-          echo "===== LAST COMMIT ====="
-          git log --oneline -1
+          echo "========================================"
+          echo ""
+
+          echo "===== REPOSITORY ACCESS ====="
+          curl -i \
+            -H "Authorization: Bearer ${RELEASE_PAT}" \
+            https://api.github.com/repos/Soujash-123/ai-mastering
+
+      # ===================================================
+      # DEBUG ONLY
+      # Uncomment these once authentication is confirmed.
+      # ===================================================
 
       # - name: Push main branch
       #   run: |
