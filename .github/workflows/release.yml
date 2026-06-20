@@ -20,6 +20,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: main
+          persist-credentials: false
 
       - name: Configure Git
         run: |
@@ -41,15 +42,19 @@ jobs:
           echo "RELEASE_VERSION=$RELEASE_VERSION" >> "$GITHUB_ENV"
           echo "RELEASE_MESSAGE=$RELEASE_MESSAGE" >> "$GITHUB_ENV"
 
-      - name: Verify PAT
+      - name: Verify RELEASE_PAT
         env:
           RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
         run: |
+          echo "Checking RELEASE_PAT..."
+
           if [ -z "$RELEASE_PAT" ]; then
-            echo "ERROR: RELEASE_PAT secret is missing."
+            echo "❌ RELEASE_PAT is EMPTY!"
             exit 1
           fi
-          echo "RELEASE_PAT found."
+
+          echo "✅ RELEASE_PAT exists."
+          echo "PAT length: ${#RELEASE_PAT}"
 
       - name: Configure target remote
         env:
@@ -58,19 +63,31 @@ jobs:
           git remote remove target || true
           git remote add target https://x-access-token:${RELEASE_PAT}@github.com/Soujash-123/ai-mastering.git
 
-      - name: Push main branch
+      - name: Debug Git configuration
         run: |
-          git push --force target main:main
+          echo "===== REMOTES ====="
+          git remote -v
 
-      - name: Create release tag
-        run: |
-          if git rev-parse "v${RELEASE_VERSION}" >/dev/null 2>&1; then
-            echo "Tag v${RELEASE_VERSION} already exists."
-            exit 1
-          fi
+          echo ""
+          echo "===== GIT CONFIG ====="
+          git config --list --show-origin
 
-          git tag -a "v${RELEASE_VERSION}" -m "${RELEASE_MESSAGE}"
+          echo ""
+          echo "===== CURRENT BRANCH ====="
+          git branch
 
-      - name: Push release tag
-        run: |
-          git push target "v${RELEASE_VERSION}"
+          echo ""
+          echo "===== LAST COMMIT ====="
+          git log --oneline -1
+
+      # - name: Push main branch
+      #   run: |
+      #     git push --force target main:main
+
+      # - name: Create release tag
+      #   run: |
+      #     git tag -a "v${RELEASE_VERSION}" -m "${RELEASE_MESSAGE}"
+
+      # - name: Push release tag
+      #   run: |
+      #     git push target "v${RELEASE_VERSION}"
