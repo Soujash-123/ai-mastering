@@ -75,7 +75,7 @@ jobs:
           RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
         run: |
           echo "===== AUTHENTICATED USER ====="
-          curl -i \
+          curl -s \
             -H "Authorization: Bearer ${RELEASE_PAT}" \
             https://api.github.com/user
 
@@ -84,7 +84,7 @@ jobs:
           echo ""
 
           echo "===== REPOSITORY ACCESS ====="
-          curl -i \
+          curl -s \
             -H "Authorization: Bearer ${RELEASE_PAT}" \
             https://api.github.com/repos/Soujash-123/ai-mastering
 
@@ -93,21 +93,29 @@ jobs:
           RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
         run: |
           echo "===== TESTING GIT AUTH ====="
-
           git ls-remote https://x-access-token:${RELEASE_PAT}@github.com/Soujash-123/ai-mastering.git
 
-      # ===================================================
-      # ENABLE AFTER DEBUGGING
-      # ===================================================
+      - name: Push main branch
+        env:
+          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
+        run: |
+          git push \
+            https://x-access-token:${RELEASE_PAT}@github.com/Soujash-123/ai-mastering.git \
+            HEAD:main
 
-      # - name: Push main branch
-      #   run: |
-      #     git push --force target main:main
+      - name: Create release tag
+        run: |
+          if git rev-parse "v${RELEASE_VERSION}" >/dev/null 2>&1; then
+            echo "❌ Tag v${RELEASE_VERSION} already exists."
+            exit 1
+          fi
 
-      # - name: Create release tag
-      #   run: |
-      #     git tag -a "v${RELEASE_VERSION}" -m "${RELEASE_MESSAGE}"
+          git tag -a "v${RELEASE_VERSION}" -m "${RELEASE_MESSAGE}"
 
-      # - name: Push release tag
-      #   run: |
-      #     git push target "v${RELEASE_VERSION}"
+      - name: Push release tag
+        env:
+          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
+        run: |
+          git push \
+            https://x-access-token:${RELEASE_PAT}@github.com/Soujash-123/ai-mastering.git \
+            "v${RELEASE_VERSION}"
