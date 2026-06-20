@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
 
 export function apiUrl(path: string) {
   return `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
@@ -45,11 +45,12 @@ export type JobResult = {
   streaming_notes: string[];
 };
 
-export async function createJob(file: File, targetPlatform: string, userIntent: string) {
+export async function createJob(file: File, targetPlatform: string, userIntent: string, ephemeral = true) {
   const fd = new FormData();
   fd.append("file", file);
   fd.append("target_platform", targetPlatform);
   fd.append("user_intent", userIntent);
+  fd.append("ephemeral", String(ephemeral));
   const res = await fetch(apiUrl("/api/jobs"), { method: "POST", body: fd });
   if (!res.ok) throw new Error(await res.text());
   return (await res.json()) as { job_id: string };
@@ -66,4 +67,20 @@ export async function fetchResult(jobId: string) {
   if (res.status === 409) return null;
   if (!res.ok) throw new Error(await res.text());
   return (await res.json()) as JobResult;
+}
+
+export function wsUrl(path: string): string {
+  const base = process.env.NEXT_PUBLIC_API_BASE || "";
+  if (base) return base.replace(/^http/, "ws") + path;
+  if (typeof window === "undefined") return path;
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${proto}//${window.location.host}${path}`;
+}
+
+export async function deleteJob(jobId: string): Promise<void> {
+  try {
+    await fetch(apiUrl(`/api/jobs/${jobId}`), { method: "DELETE", keepalive: true });
+  } catch {
+    /* best-effort */
+  }
 }
