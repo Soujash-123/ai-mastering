@@ -45,12 +45,13 @@ export type JobResult = {
   streaming_notes: string[];
 };
 
-export async function createJob(file: File, targetPlatform: string, userIntent: string, ephemeral = true) {
+export async function createJob(file: File, targetPlatform: string, userIntent: string, ephemeral = true, userTier = "rollout") {
   const fd = new FormData();
   fd.append("file", file);
   fd.append("target_platform", targetPlatform);
   fd.append("user_intent", userIntent);
   fd.append("ephemeral", String(ephemeral));
+  fd.append("user_tier", userTier);
   const res = await fetch(apiUrl("/api/jobs"), { method: "POST", body: fd });
   if (!res.ok) throw new Error(await res.text());
   return (await res.json()) as { job_id: string };

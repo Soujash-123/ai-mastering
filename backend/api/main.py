@@ -38,6 +38,12 @@ app.add_middleware(
 
 _ALLOWED = frozenset({".wav", ".flac"})
 
+# Max upload durations per tier (seconds)
+_TIER_MAX_DURATION: dict[str, float] = {
+    "rollout": 120.0,       # 2 minutes
+    "early_access": 300.0,  # 5 minutes
+}
+
 
 def _normalize_upload_to_job_wav(src: bytes, dest_wav: Path, original_suffix: str) -> None:
     """Decode WAV/FLAC with libsndfile (soundfile), write canonical float PCM WAV for the pipeline."""
@@ -73,6 +79,7 @@ async def create_job(
     target_platform: str = Form("Spotify"),
     user_intent: str = Form(""),
     ephemeral: bool = Form(False),
+    user_tier: str = Form("rollout"),
 ) -> JobCreateResponse:
     if not file.filename:
         raise HTTPException(status_code=400, detail="Missing filename")
@@ -84,12 +91,36 @@ async def create_job(
             detail="Only WAV and FLAC uploads are supported (no transcoding pipeline).",
         )
 
+    # Read the raw bytes first so we can check duration before writing
+    content = await file.read()
+    await file.close()
+
+    # Enforce per-tier duration limit using soundfile (fast header-read via BytesIO)
+    import io
+    max_dur = _TIER_MAX_DURATION.get(user_tier, _TIER_MAX_DURATION["rollout"])
+    try:
+        with sf.SoundFile(io.BytesIO(content)) as f:
+            duration_sec = f.frames / f.samplerate
+        if duration_sec > max_dur:
+            max_min = int(max_dur // 60)
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Audio is {duration_sec / 60:.1f} min — "
+                    f"your {user_tier.replace('_', ' ').title()} plan allows up to {max_min} min. "
+                    "Trim your track or upgrade your access."
+                ),
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        # If we can't read headers, let the normalizer handle the error properly
+        pass
+
     rec = await job_store.create_job(settings.data_dir, ephemeral=ephemeral)
     assert rec.input_path is not None
 
     try:
-        content = await file.read()
-        await file.close()
         _normalize_upload_to_job_wav(content, rec.input_path, suffix)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
