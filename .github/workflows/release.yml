@@ -47,59 +47,37 @@ jobs:
           RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
         run: |
           if [ -z "$RELEASE_PAT" ]; then
-            echo "❌ RELEASE_PAT is EMPTY!"
+            echo "ERROR: RELEASE_PAT is missing."
             exit 1
           fi
 
-          echo "✅ RELEASE_PAT found."
-          echo "PAT length: ${#RELEASE_PAT}"
-
-      - name: Configure target remote
+      - name: Test Git authentication
         env:
           RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
         run: |
-          git remote remove target || true
-          git remote add target https://x-access-token:${RELEASE_PAT}@github.com/Soujash-123/ai-mastering.git
+          git ls-remote https://x-access-token:${RELEASE_PAT}@github.com/Soujash-123/ai-mastering.git
 
-      - name: Debug remotes
-        run: |
-          echo "===== REMOTES ====="
-          git remote -v
-          echo ""
-          echo "===== GIT CONFIG ====="
-          git config --list --show-origin
-
-      - name: Test GitHub API authentication
+      - name: Push main branch
         env:
           RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
         run: |
-          echo "===== AUTHENTICATED USER ====="
-          curl -i \
-            -H "Authorization: Bearer ${RELEASE_PAT}" \
-            https://api.github.com/user
+          git push --force \
+            https://x-access-token:${RELEASE_PAT}@github.com/Soujash-123/ai-mastering.git \
+            main:main
 
-          echo ""
-          echo "========================================"
-          echo ""
+      - name: Create release tag
+        run: |
+          if git rev-parse "v${RELEASE_VERSION}" >/dev/null 2>&1; then
+            echo "Tag v${RELEASE_VERSION} already exists."
+            exit 1
+          fi
 
-          echo "===== REPOSITORY ACCESS ====="
-          curl -i \
-            -H "Authorization: Bearer ${RELEASE_PAT}" \
-            https://api.github.com/repos/Soujash-123/ai-mastering
+          git tag -a "v${RELEASE_VERSION}" -m "${RELEASE_MESSAGE}"
 
-      # ===================================================
-      # DEBUG ONLY
-      # Uncomment these once authentication is confirmed.
-      # ===================================================
-
-      # - name: Push main branch
-      #   run: |
-      #     git push --force target main:main
-
-      # - name: Create release tag
-      #   run: |
-      #     git tag -a "v${RELEASE_VERSION}" -m "${RELEASE_MESSAGE}"
-
-      # - name: Push release tag
-      #   run: |
-      #     git push target "v${RELEASE_VERSION}"
+      - name: Push release tag
+        env:
+          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
+        run: |
+          git push \
+            https://x-access-token:${RELEASE_PAT}@github.com/Soujash-123/ai-mastering.git \
+            "v${RELEASE_VERSION}"
