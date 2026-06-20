@@ -25,7 +25,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git remote add target https://x-access-token:${{ secrets.RELEASE_PAT }}@github.com/Soujash-123/ai-mastering.git
+          git remote add target https://github.com/Soujash-123/ai-mastering.git
 
       - name: Set release metadata
         shell: bash
@@ -40,7 +40,10 @@ jobs:
           echo "RELEASE_MESSAGE=$release_message" >> $GITHUB_ENV
 
       - name: Push main branch to target repository
+        env:
+          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
         run: |
-          git push --force-with-lease target main:main
-          git tag -a "v${RELEASE_VERSION}" -m "${RELEASE_MESSAGE}"
-          git push target "v${RELEASE_VERSION}"
+          set -Eeuo pipefail
+          git -c http.extraheader="Authorization: Bearer ${RELEASE_PAT}" push --force-with-lease target main:main
+          git -c http.extraheader="Authorization: Bearer ${RELEASE_PAT}" tag -a "v${RELEASE_VERSION}" -m "${RELEASE_MESSAGE}"
+          git -c http.extraheader="Authorization: Bearer ${RELEASE_PAT}" push target "v${RELEASE_VERSION}"
