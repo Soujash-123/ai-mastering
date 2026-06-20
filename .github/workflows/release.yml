@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       release_version:
-        description: 'Release version'
+        description: "Release version (e.g. 0.1.1)"
         required: true
       release_message:
-        description: 'Optional release message'
+        description: "Optional release message"
         required: false
 
 jobs:
@@ -21,29 +21,56 @@ jobs:
           fetch-depth: 0
           ref: main
 
-      - name: Configure git for release push
+      - name: Configure Git
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git remote add target https://github.com/Soujash-123/ai-mastering.git
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Set release metadata
         shell: bash
         run: |
           set -Eeuo pipefail
-          release_version="${{ github.event.inputs.release_version }}"
-          release_message="${{ github.event.inputs.release_message }}"
-          if [ -z "$release_message" ]; then
-            release_message="Release $release_version"
-          fi
-          echo "RELEASE_VERSION=$release_version" >> $GITHUB_ENV
-          echo "RELEASE_MESSAGE=$release_message" >> $GITHUB_ENV
 
-      - name: Push main branch to target repository
+          RELEASE_VERSION="${{ github.event.inputs.release_version }}"
+          RELEASE_MESSAGE="${{ github.event.inputs.release_message }}"
+
+          if [ -z "$RELEASE_MESSAGE" ]; then
+            RELEASE_MESSAGE="Release $RELEASE_VERSION"
+          fi
+
+          echo "RELEASE_VERSION=$RELEASE_VERSION" >> "$GITHUB_ENV"
+          echo "RELEASE_MESSAGE=$RELEASE_MESSAGE" >> "$GITHUB_ENV"
+
+      - name: Verify PAT
         env:
           RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
         run: |
-          set -Eeuo pipefail
-          git -c http.extraheader="Authorization: Bearer ${RELEASE_PAT}" push --force-with-lease target main:main
-          git -c http.extraheader="Authorization: Bearer ${RELEASE_PAT}" tag -a "v${RELEASE_VERSION}" -m "${RELEASE_MESSAGE}"
-          git -c http.extraheader="Authorization: Bearer ${RELEASE_PAT}" push target "v${RELEASE_VERSION}"
+          if [ -z "$RELEASE_PAT" ]; then
+            echo "ERROR: RELEASE_PAT secret is missing."
+            exit 1
+          fi
+          echo "RELEASE_PAT found."
+
+      - name: Configure target remote
+        env:
+          RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
+        run: |
+          git remote remove target || true
+          git remote add target https://x-access-token:${RELEASE_PAT}@github.com/Soujash-123/ai-mastering.git
+
+      - name: Push main branch
+        run: |
+          git push --force target main:main
+
+      - name: Create release tag
+        run: |
+          if git rev-parse "v${RELEASE_VERSION}" >/dev/null 2>&1; then
+            echo "Tag v${RELEASE_VERSION} already exists."
+            exit 1
+          fi
+
+          git tag -a "v${RELEASE_VERSION}" -m "${RELEASE_MESSAGE}"
+
+      - name: Push release tag
+        run: |
+          git push target "v${RELEASE_VERSION}"
