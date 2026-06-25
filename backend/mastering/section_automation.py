@@ -1,4 +1,4 @@
-"""Section-aware automation curves from analysis (no LLM)."""
+"""Section-aware automation from analysis (control-rate compression, scalar modifiers)."""
 
 from __future__ import annotations
 
@@ -6,9 +6,8 @@ from typing import Any
 
 import numpy as np
 
-from mastering.dsp_params import MasteringDSPPlan, SafeDSPParams
+from mastering.dsp_params import SECTION_CONTROL_HZ, MasteringDSPPlan, SafeDSPParams
 
-# Perceptual multipliers by section role (applied on top of global params)
 _SECTION_PRESETS: dict[str, dict[str, float]] = {
     "intro": {"width": 0.96, "sat": 0.88, "comp": 0.9, "exciter": 0.85},
     "verse": {"width": 0.98, "sat": 0.92, "comp": 0.92, "exciter": 0.9},
@@ -20,56 +19,20 @@ _SECTION_PRESETS: dict[str, dict[str, float]] = {
 }
 
 
-def _smooth_crossfade(env: np.ndarray, sr: int, ms: float = 60.0) -> np.ndarray:
-    win = max(3, int(ms * 1e-3 * sr))
-    k = np.hanning(win).astype(np.float32)
-    k /= np.sum(k) + 1e-12
-    return np.convolve(env, k, mode="same").astype(np.float32)
+def _smooth_1d(values: np.ndarray, radius: int = 2) -> np.ndarray:
+    if values.size < 3 or radius < 1:
+        return values
+    kernel = np.hanning(radius * 2 + 1).astype(np.float32)
+    kernel /= np.sum(kernel) + 1e-12
+    return np.convolve(values, kernel, mode="same").astype(np.float32)
 
 
 def _energy_scale(section_row: dict[str, Any]) -> float:
-    """Map sectional metrics to 0.85..1.15 multiplier."""
     punch = float(section_row.get("punch_score", 0.5))
     rms = float(section_row.get("rms", 0.1))
     emo = float(section_row.get("emotional_intensity_estimation", 5.0))
     e = 0.9 + min(0.2, punch * 0.08 + rms * 0.4 + emo * 0.02)
     return float(np.clip(e, 0.85, 1.18))
-
-
-def build_section_curves(
-    n_samples: int,
-    sr: int,
-    sectional_analysis: list[dict[str, Any]],
-    base_width: float,
-    analysis: dict[str, Any] | None = None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list[str]]:
-    width = np.ones(n_samples, dtype=np.float32) * base_width
-    sat = np.ones(n_samples, dtype=np.float32)
-    comp = np.ones(n_samples, dtype=np.float32)
-    exciter = np.ones(n_samples, dtype=np.float32)
-    labels: list[str] = []
-
-    ctx = analysis or {}
-    for row in sectional_analysis:
-        name = str(row.get("section", "verse")).split("+")[0]
-        preset = _SECTION_PRESETS.get(name, _SECTION_PRESETS["verse"])
-        e_scale = _energy_scale(row)
-        s0 = max(0, int(float(row.get("start_sec", 0)) * sr))
-        s1 = min(n_samples, int(float(row.get("end_sec", 0)) * sr))
-        if s1 <= s0:
-            continue
-        labels.append(name)
-        llm = _llm_section_scale(ctx, name)
-        width[s0:s1] = preset["width"] * e_scale * llm
-        sat[s0:s1] = preset["sat"] * e_scale * llm
-        comp[s0:s1] = preset["comp"] * e_scale * llm
-        exciter[s0:s1] = preset["exciter"] * e_scale * llm
-
-    width = _smooth_crossfade(width, sr)
-    sat = _smooth_crossfade(sat, sr)
-    comp = _smooth_crossfade(comp, sr)
-    exciter = _smooth_crossfade(exciter, sr)
-    return width, sat, comp, exciter, labels
 
 
 def _llm_section_scale(analysis: dict[str, Any], section_name: str) -> float:
@@ -81,32 +44,97 @@ def _llm_section_scale(analysis: dict[str, Any], section_name: str) -> float:
     return 1.0
 
 
+def _build_control_rate_plan(
+    duration_sec: float,
+    sectional_analysis: list[dict[str, Any]],
+    base_width: float,
+    analysis: dict[str, Any] | None,
+    control_hz: float = SECTION_CONTROL_HZ,
+) -> tuple[float, float, float, np.ndarray, list[str]]:
+    """Build scalar modifiers + ~10 Hz compression curve (~KB, not ~MB)."""
+    n_ctl = max(2, int(duration_sec * control_hz) + 1)
+    comp = np.ones(n_ctl, dtype=np.float32)
+    labels: list[str] = []
+
+    width_sum = 0.0
+    sat_sum = 0.0
+    exciter_sum = 0.0
+    weight_sum = 0.0
+
+    ctx = analysis or {}
+    for row in sectional_analysis:
+        name = str(row.get("section", "verse")).split("+")[0]
+        preset = _SECTION_PRESETS.get(name, _SECTION_PRESETS["verse"])
+        e_scale = _energy_scale(row)
+        llm = _llm_section_scale(ctx, name)
+        start = float(row.get("start_sec", 0.0))
+        end = float(row.get("end_sec", start))
+        dur = max(0.0, end - start)
+        if dur <= 0:
+            continue
+
+        labels.append(name)
+        w_val = float(preset["width"] * e_scale * llm)
+        s_val = float(preset["sat"] * e_scale * llm)
+        e_val = float(preset["exciter"] * e_scale * llm)
+        c_val = float(preset["comp"] * e_scale * llm)
+
+        width_sum += w_val * dur
+        sat_sum += s_val * dur
+        exciter_sum += e_val * dur
+        weight_sum += dur
+
+        i0 = max(0, int(start * control_hz))
+        i1 = min(n_ctl, int(end * control_hz) + 1)
+        if i1 > i0:
+            comp[i0:i1] = c_val
+
+    comp = _smooth_1d(comp, radius=2)
+
+    if weight_sum > 0:
+        width_mod = width_sum / weight_sum
+        sat_mod = sat_sum / weight_sum
+        exciter_mod = exciter_sum / weight_sum
+    else:
+        width_mod = float(base_width)
+        sat_mod = 1.0
+        exciter_mod = 1.0
+
+    return width_mod, sat_mod, exciter_mod, comp, labels
+
+
 def build_mastering_plan(
     params: SafeDSPParams,
     analysis: dict[str, Any] | None,
     duration_sec: float,
     sr: int,
 ) -> MasteringDSPPlan:
-    n = max(1, int(duration_sec * sr))
-    sectional = []
+    _ = sr
+    sectional: list[dict[str, Any]] = []
     if analysis:
         sectional = list(analysis.get("sectional_analysis") or [])
 
     if sectional:
-        w, s, c, e, labels = build_section_curves(n, sr, sectional, params.stereo_width_factor, analysis)
+        width_mod, sat_mod, exciter_mod, comp, labels = _build_control_rate_plan(
+            duration_sec,
+            sectional,
+            params.stereo_width_factor,
+            analysis,
+        )
     else:
-        w = np.full(n, params.stereo_width_factor, dtype=np.float32)
-        s = np.ones(n, dtype=np.float32)
-        c = np.ones(n, dtype=np.float32)
-        e = np.ones(n, dtype=np.float32)
+        width_mod = float(params.stereo_width_factor)
+        sat_mod = 1.0
+        exciter_mod = 1.0
+        comp = np.ones(max(2, int(duration_sec * SECTION_CONTROL_HZ) + 1), dtype=np.float32)
         labels = []
 
     return MasteringDSPPlan(
         params=params,
         duration_sec=duration_sec,
-        width_curve=w,
-        saturation_curve=s,
-        compression_curve=c,
-        exciter_curve=e,
+        width_mod=width_mod,
+        sat_mod=sat_mod,
+        exciter_mod=exciter_mod,
+        compression_curve=comp,
+        compression_control_hz=SECTION_CONTROL_HZ,
         section_labels=labels,
     )

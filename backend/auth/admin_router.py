@@ -39,6 +39,8 @@ def update_user(
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    if user.is_provisioned:
+        raise HTTPException(status_code=403, detail="Provisioned accounts cannot be modified via the API")
     if body.role is not None:
         user.role = body.role.value
     if body.is_active is not None:

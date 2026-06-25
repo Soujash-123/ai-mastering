@@ -1,14 +1,14 @@
-"""Premium adaptive mastering chain: float64 DSP, gain staging, distortion-safe loudness."""
+"""Adaptive mastering chain: float32 working buffers, block oversampling, gain staging."""
 
 from __future__ import annotations
 
+import gc
 from typing import Any
 
 import numpy as np
 import soundfile as sf
-
 from mastering.dsp_params import MasteringDSPPlan, SafeDSPParams
-from mastering.dsp_utils import as_f32, as_f64, gain_stage
+from mastering.dsp_utils import as_f32, gain_stage
 from mastering.dynamic_eq import intelligent_dynamic_eq
 from mastering.exciter import psychoacoustic_exciter
 from mastering.lowend import stabilize_low_end
@@ -21,17 +21,13 @@ from mastering.saturation import analog_harmonic_engine
 from mastering.section_automation import build_mastering_plan
 from mastering.stereo import immersive_stereo
 from mastering.transients import transient_reconstruct
+from utils.memory import memory_step
 
 
 def _to_stereo(y: np.ndarray) -> np.ndarray:
     if y.ndim == 1:
         return np.stack([y, y], axis=0).astype(np.float32)
     return y.astype(np.float32)
-
-
-def _dither_export(y: np.ndarray) -> np.ndarray:
-    d = (np.random.randn(*y.shape) + np.random.randn(*y.shape)) * (1.0 / (2**16))
-    return (y + d * 0.25).astype(np.float32)
 
 
 def render_master(stereo: np.ndarray, sr: int, plan: MasteringDSPPlan) -> np.ndarray:
@@ -42,67 +38,77 @@ def render_master(stereo: np.ndarray, sr: int, plan: MasteringDSPPlan) -> np.nda
     """
     p = plan.params
     sr_f = float(sr)
-    x = as_f64(stereo)
+    x = as_f32(stereo)
+    scratch = np.empty_like(x)
 
-    # 1. Tonal EQ (zero-phase mastering mode)
-    sos: list[np.ndarray] = [
-        low_shelf_sos(90.0, p.low_shelf_db, sr_f),
-        peaking_sos(2500.0, p.mid_peak_db, sr_f, q=1.0),
-        high_shelf_sos(9500.0, p.high_shelf_db, sr_f),
-    ]
-    x = np.stack(
-        [sos_chain_filter(x[0], sos, zero_phase=True), sos_chain_filter(x[1], sos, zero_phase=True)],
-        axis=0,
-    )
-    x = gain_stage(x, peak_ceiling=0.94)
+    with memory_step("mastering.tonal_eq"):
+        sos: list[np.ndarray] = [
+            low_shelf_sos(90.0, p.low_shelf_db, sr_f),
+            peaking_sos(2500.0, p.mid_peak_db, sr_f, q=1.0),
+            high_shelf_sos(9500.0, p.high_shelf_db, sr_f),
+        ]
+        x = np.stack(
+            [sos_chain_filter(x[0], sos, zero_phase=True), sos_chain_filter(x[1], sos, zero_phase=True)],
+            axis=0,
+        ).astype(np.float32)
+        x = gain_stage(x, peak_ceiling=0.94, inplace=True)
 
-    # 2. Dynamic EQ + resonance
-    x = intelligent_dynamic_eq(x, sr, p).astype(np.float64)
-    x = dynamic_resonance_suppress(x, sr, p.resonance_suppression).astype(np.float64)
-    x = gain_stage(x, peak_ceiling=0.93)
+    with memory_step("mastering.dynamic_eq_resonance"):
+        x = intelligent_dynamic_eq(x, sr, p).astype(np.float32, copy=False)
+        x = dynamic_resonance_suppress(x, sr, p.resonance_suppression).astype(np.float32, copy=False)
+        x = gain_stage(x, peak_ceiling=0.93, inplace=True)
 
-    # 3. Low-end stabilization (before loudness)
-    x = stabilize_low_end(x, sr, plan)
-    x = gain_stage(x, peak_ceiling=0.92, rms_ceiling=0.28)
+    with memory_step("mastering.low_end"):
+        x = stabilize_low_end(x, sr, plan).astype(np.float32, copy=False)
+        x = gain_stage(x, peak_ceiling=0.92, rms_ceiling=0.28, inplace=True)
 
-    # 4. Multiband compression (musical glue)
-    dry_pre_dyn = x.copy()
-    compressed = multiband_compress(x, sr, plan)
-    x = p.transient_blend * dry_pre_dyn + (1.0 - p.transient_blend) * compressed
-    x = gain_stage(x, peak_ceiling=0.91, min_crest_db=8.0)
+    with memory_step("mastering.multiband_compress"):
+        np.copyto(scratch, x)
+        compressed = multiband_compress(x, sr, plan)
+        blend = float(p.transient_blend)
+        x[:] = blend * scratch + (1.0 - blend) * compressed.astype(np.float32, copy=False)
+        del compressed
+        plan.compression_curve = None
+        gc.collect()
+        x = gain_stage(x, peak_ceiling=0.91, min_crest_db=8.0, inplace=True)
 
-    # 5. Early gentle perceptual density (spectral only)
-    x = perceptual_loudness_optimize(x, sr, p)
-    x = gain_stage(x, peak_ceiling=0.90)
+    with memory_step("mastering.perceptual_density"):
+        x = perceptual_loudness_optimize(x, sr, p).astype(np.float32, copy=False)
+        x = gain_stage(x, peak_ceiling=0.90, inplace=True)
 
-    # 6. Multi-band harmonic engine (oversampled, subs protected)
-    x = analog_harmonic_engine(x, sr, plan)
-    x = gain_stage(x, peak_ceiling=0.88)
+    with memory_step("mastering.harmonic_engine"):
+        x = analog_harmonic_engine(x, sr, plan).astype(np.float32, copy=False)
+        x = gain_stage(x, peak_ceiling=0.88, inplace=True)
 
-    # 7. Light psychoacoustic exciter
-    x = psychoacoustic_exciter(x, sr, plan).astype(np.float64)
-    x = gain_stage(x, peak_ceiling=0.87)
+    with memory_step("mastering.exciter"):
+        x = psychoacoustic_exciter(x, sr, plan).astype(np.float32, copy=False)
+        x = gain_stage(x, peak_ceiling=0.87, inplace=True)
 
-    # 8. Frequency-dependent stereo
-    x = immersive_stereo(x, sr, plan).astype(np.float64)
-    x = gain_stage(x, peak_ceiling=0.86)
+    with memory_step("mastering.stereo"):
+        x = immersive_stereo(x, sr, plan).astype(np.float32, copy=False)
+        x = gain_stage(x, peak_ceiling=0.86, inplace=True)
 
-    # 9. Soft clip (8x OS) — gradual crest reduction
-    pre_limit = x.copy()
-    x = soft_clip_oversampled(x, sr, p)
-    x = gain_stage(x, peak_ceiling=0.85)
+    with memory_step("mastering.soft_clip"):
+        np.copyto(scratch, x)
+        x = soft_clip_oversampled(x, sr, p).astype(np.float32, copy=False)
+        x = gain_stage(x, peak_ceiling=0.85, inplace=True)
 
-    # 10. Mastering limiter (transparent, ISP-safe)
-    limited = mastering_limiter(x, sr, p)
-    x = gain_stage(limited, peak_ceiling=0.84)
+    with memory_step("mastering.limiter"):
+        mastering_limiter(x, sr, p, out=x)
+        x = gain_stage(x, peak_ceiling=0.84, inplace=True)
+        gc.collect()
 
-    # 11. Transient reconstruction (punch after limiting)
-    x = transient_reconstruct(pre_limit, x, sr, p.transient_restore).astype(np.float64)
-    x = gain_stage(x, peak_ceiling=0.83)
+    with memory_step("mastering.transient_reconstruct"):
+        x = transient_reconstruct(scratch, x, sr, p.transient_restore).astype(np.float32, copy=False)
+        x = gain_stage(x, peak_ceiling=0.83, inplace=True)
 
-    # 12. Gradual LUFS normalization (small steps + limiter between)
-    x = gradual_loudness_normalize(x, sr, p)
-    x = gain_stage(x, peak_ceiling=float(10 ** (p.true_peak_ceiling_db / 20.0)) * 0.98)
+    with memory_step("mastering.loudness_normalize"):
+        x = gradual_loudness_normalize(x, sr, p).astype(np.float32, copy=False)
+        x = gain_stage(
+            x,
+            peak_ceiling=float(10 ** (p.true_peak_ceiling_db / 20.0)) * 0.98,
+            inplace=True,
+        )
 
     return as_f32(x)
 
@@ -113,14 +119,20 @@ def master_file(
     params: SafeDSPParams,
     analysis: dict[str, Any] | None = None,
 ) -> None:
-    y, sr = sf.read(input_path, always_2d=True)
-    y = y.T.astype(np.float32)
-    if y.shape[0] > 2:
-        y = y[:2]
-    stereo = _to_stereo(y[0]) if y.shape[0] == 1 else y
+    with memory_step("mastering.load_audio"):
+        y, sr = sf.read(input_path, always_2d=True, dtype="float32")
+        y = y.T.astype(np.float32)
+        if y.shape[0] > 2:
+            y = y[:2]
+        stereo = _to_stereo(y[0]) if y.shape[0] == 1 else y
 
-    duration = float(stereo.shape[1] / sr)
-    plan = build_mastering_plan(params, analysis, duration, sr)
+    with memory_step("mastering.build_plan"):
+        duration = float(stereo.shape[1] / sr)
+        plan = build_mastering_plan(params, analysis, duration, sr)
+        gc.collect()
+
     out = render_master(stereo, sr, plan)
-    out = _dither_export(out)
-    sf.write(output_path, out.T, sr, subtype="PCM_24")
+    del stereo, plan
+    gc.collect()
+    with memory_step("mastering.write_output"):
+        sf.write(output_path, out.T, sr, subtype="PCM_24")

@@ -28,8 +28,11 @@ class JobRecord:
     report: Optional[dict[str, Any]] = None
     exports: list[dict[str, str]] = field(default_factory=list)
     streaming_notes: list[str] = field(default_factory=list)
+    memory_profile: list[dict[str, Any]] = field(default_factory=list)
     error: Optional[str] = None
     ephemeral: bool = False
+    user_id: Optional[int] = None
+    user_role: Optional[str] = None
 
 
 class JobStore:
@@ -39,12 +42,24 @@ class JobStore:
         self._memory_cap = 200
         self._pending_deletes: dict[str, asyncio.Task] = {}
 
-    async def create_job(self, data_dir: Path, ephemeral: bool = False) -> JobRecord:
+    async def create_job(
+        self,
+        data_dir: Path,
+        ephemeral: bool = False,
+        user_id: int | None = None,
+        user_role: str | None = None,
+    ) -> JobRecord:
         async with self._lock:
             job_id = str(uuid.uuid4())
             job_dir = data_dir / "jobs" / job_id
             job_dir.mkdir(parents=True, exist_ok=True)
-            rec = JobRecord(job_id=job_id, input_path=job_dir / "input.wav", ephemeral=ephemeral)
+            rec = JobRecord(
+                job_id=job_id,
+                input_path=job_dir / "input.wav",
+                ephemeral=ephemeral,
+                user_id=user_id,
+                user_role=user_role,
+            )
             self._jobs[job_id] = rec
             if not ephemeral:
                 try:
@@ -175,7 +190,10 @@ def _record_to_dict(rec: JobRecord) -> dict:
         "report": rec.report,
         "exports": rec.exports,
         "streaming_notes": rec.streaming_notes,
+        "memory_profile": rec.memory_profile,
         "error": rec.error,
+        "user_id": rec.user_id,
+        "user_role": rec.user_role,
     }
 
 
@@ -197,7 +215,10 @@ def _dict_to_record(d: dict) -> JobRecord:
         report=d.get("report"),
         exports=d.get("exports", []),
         streaming_notes=d.get("streaming_notes", []),
+        memory_profile=d.get("memory_profile", []),
         error=d.get("error"),
+        user_id=d.get("user_id"),
+        user_role=d.get("user_role"),
     )
     return rec
 

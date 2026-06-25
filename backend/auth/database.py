@@ -33,6 +33,24 @@ def init_db() -> None:
     from auth import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    _ensure_provisioned_column()
+
+
+def _ensure_provisioned_column() -> None:
+    """Best-effort SQLite migration for existing databases."""
+    try:
+        from sqlalchemy import inspect, text
+
+        insp = inspect(engine)
+        if "users" not in insp.get_table_names():
+            return
+        cols = {c["name"] for c in insp.get_columns("users")}
+        if "is_provisioned" in cols:
+            return
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE users ADD COLUMN is_provisioned BOOLEAN NOT NULL DEFAULT 0"))
+    except Exception:
+        pass
 
 
 def get_db():

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from analysis.pipeline import run_multilayer_analysis
@@ -16,6 +15,4 @@ def analyze_audio_file(path: str, target_platform: str = "Spotify", user_intent:
         user_intent=user_intent,
         temporal_interval_sec=1.0,
     )
-    analysis = to_json_safe(analysis)
-    analysis["analysis_json"] = json.dumps(analysis)
-    return analysis
+    return to_json_safe(analysis)

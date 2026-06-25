@@ -16,13 +16,19 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 def register(body: RegisterRequest, db: Annotated[Session, Depends(get_db)]) -> TokenResponse:
-    existing = db.query(User).filter(User.email == body.email.lower()).first()
+    email = body.email.lower()
+    if is_provisioned_email(email):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This email is provisioned by KORD. Sign in with your assigned password.",
+        )
+    existing = db.query(User).filter(User.email == email).first()
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
     user = User(
         full_name=body.full_name.strip(),
-        email=body.email.lower(),
+        email=email,
         password_hash=hash_password(body.password),
         role=UserRole.ROLLOUT.value,
         is_active=True,
@@ -38,8 +44,6 @@ def register(body: RegisterRequest, db: Annotated[Session, Depends(get_db)]) -> 
 @router.post("/login", response_model=TokenResponse)
 def login(body: LoginRequest, db: Annotated[Session, Depends(get_db)]) -> TokenResponse:
     user = db.query(User).filter(User.email == body.email.lower()).first()
-    # DEBUG: print the exact password value being checked (use repr to reveal whitespace/hidden chars)
-    print(f"DEBUG login attempt: email={body.email.lower()} password={body.password!r}")
     if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
     if not user.is_active:

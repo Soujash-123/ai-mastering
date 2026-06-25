@@ -93,6 +93,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
   }
 
+  if (!user && !PUBLIC_PATHS.has(pathname)) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <div className="h-5 w-5 animate-spin rounded-full border border-white/10 border-t-accent" />
+      </div>
+    );
+  }
+
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

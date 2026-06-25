@@ -4,23 +4,37 @@ from typing import Optional
 
 from auth.schemas import UserRole
 
+# Upload limits (seconds)
+_ADMIN_MAX_SEC = 300.0
+_EARLY_ACCESS_MAX_SEC = 300.0
+_ROLLOUT_MAX_SEC = 120.0
+
 
 def max_upload_duration_sec(role: str) -> Optional[float]:
-    """Return max seconds allowed for upload, or None for no platform limit (ADMIN)."""
     if role == UserRole.ADMIN.value:
-        return None
+        return _ADMIN_MAX_SEC
     if role == UserRole.EARLY_ACCESS.value:
-        return 300.0
-    return 180.0
+        return _EARLY_ACCESS_MAX_SEC
+    return _ROLLOUT_MAX_SEC
+
+
+def can_access_advanced_features(role: str) -> bool:
+    return role in {UserRole.ADMIN.value, UserRole.EARLY_ACCESS.value}
+
+
+def can_access_full_result(role: str) -> bool:
+    return role in {UserRole.ADMIN.value, UserRole.EARLY_ACCESS.value}
 
 
 def can_access_simulations(role: str) -> bool:
-    return role in {UserRole.ADMIN.value, UserRole.EARLY_ACCESS.value}
+    return can_access_full_result(role)
 
 
 def duration_limit_message(role: str) -> str:
     if role == UserRole.ROLLOUT.value:
-        return "Your Rollout plan allows tracks up to 3 minutes."
+        return "Rollout allows tracks up to 2 minutes."
     if role == UserRole.EARLY_ACCESS.value:
         return "Early Access allows tracks up to 5 minutes."
+    if role == UserRole.ADMIN.value:
+        return "Admin uploads are limited to 5 minutes."
     return "Track exceeds your upload limit."

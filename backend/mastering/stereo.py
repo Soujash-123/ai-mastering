@@ -23,8 +23,8 @@ def _band_ms_width(
 
 def immersive_stereo(stereo: np.ndarray, sr: int, plan: MasteringDSPPlan) -> np.ndarray:
     p = plan.params
-    l = stereo[0].astype(np.float64)
-    r = stereo[1].astype(np.float64)
+    l = stereo[0].astype(np.float32, copy=False)
+    r = stereo[1].astype(np.float32, copy=False)
     nyq = sr / 2.0
 
     sos_sub = signal.butter(4, min(55.0, nyq * 0.8) / nyq, btype="low", output="sos")
@@ -54,10 +54,9 @@ def immersive_stereo(stereo: np.ndarray, sr: int, plan: MasteringDSPPlan) -> np.
     width_bass = float(np.clip(0.98 + (p.width_body - 1.0) * 0.15, 0.94, 1.02))
     width_body = float(p.width_body)
     width_air = float(p.width_air)
-    if plan.width_curve is not None:
-        wm = float(np.clip(np.mean(plan.width_curve), 0.8, 1.2))
-        width_body *= wm
-        width_air *= wm
+    wm = float(np.clip(plan.width_mod, 0.8, 1.2))
+    width_body *= wm
+    width_air *= wm
 
     bass_l, bass_r = _band_ms_width(bass_l, bass_r, width_bass, p.center_anchor)
     body_l, body_r = _band_ms_width(body_l, body_r, width_body, p.center_anchor)
@@ -70,4 +69,4 @@ def immersive_stereo(stereo: np.ndarray, sr: int, plan: MasteringDSPPlan) -> np.
     peak = float(np.max(np.abs(out)) + 1e-12)
     if peak > 1.0:
         out /= peak
-    return out.astype(np.float64, copy=False)
+    return out.astype(np.float32, copy=False)

@@ -25,9 +25,11 @@ def gain_stage(
     peak_ceiling: float = 0.92,
     rms_ceiling: float | None = None,
     min_crest_db: float | None = None,
+    *,
+    inplace: bool = False,
 ) -> np.ndarray:
     """Auto-trim after each major stage to prevent downstream overload."""
-    out = stereo.copy()
+    out = stereo if inplace else stereo.copy()
     m = measure(out)
     if m["peak"] > peak_ceiling:
         out *= peak_ceiling / m["peak"]

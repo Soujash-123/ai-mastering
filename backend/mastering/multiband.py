@@ -9,13 +9,27 @@ from mastering.dsp_params import MasteringDSPPlan
 from mastering.envelope import hybrid_level, smooth_envelope
 
 
+def _upsample_control_curve(curve: np.ndarray | None, n_samples: int, sr: int) -> np.ndarray | None:
+    if curve is None or curve.size == 0:
+        return None
+    if curve.shape[0] == n_samples:
+        return curve.astype(np.float32, copy=False)
+    if curve.size == 1:
+        return np.full(n_samples, float(curve[0]), dtype=np.float32)
+    x_old = np.linspace(0.0, 1.0, curve.shape[0], dtype=np.float64)
+    x_new = np.linspace(0.0, 1.0, n_samples, dtype=np.float64)
+    upsampled = np.interp(x_new, x_old, curve.astype(np.float64)).astype(np.float64)
+    return smooth_envelope(upsampled, sr, 150.0).astype(np.float32)
+
+
 def _split_bands(x: np.ndarray, sr: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     nyq = sr / 2.0
     sos_lp = signal.butter(4, min(120.0, nyq * 0.95) / nyq, btype="low", output="sos")
     sos_hp = signal.butter(4, min(5500.0, nyq * 0.98) / nyq, btype="high", output="sos")
-    low = signal.sosfilt(sos_lp, x.astype(np.float64))
-    high = signal.sosfilt(sos_hp, x.astype(np.float64))
-    mid = x.astype(np.float64) - low - high
+    xf = x.astype(np.float32, copy=False)
+    low = signal.sosfilt(sos_lp, xf).astype(np.float32)
+    high = signal.sosfilt(sos_hp, xf).astype(np.float32)
+    mid = xf - low - high
     return low, mid, high
 
 
@@ -28,9 +42,8 @@ def _compress_band(
     section_gain: np.ndarray | None,
     max_gr_cap: float,
 ) -> np.ndarray:
-    level = hybrid_level(band.astype(np.float32), sr, attack_ms, release_ms).astype(np.float64)
-    level = smooth_envelope(level, sr, 30.0)
-    # Stable adaptive threshold (median + small offset)
+    level = hybrid_level(band.astype(np.float32), sr, attack_ms, release_ms).astype(np.float32)
+    level = smooth_envelope(level, sr, 30.0).astype(np.float32)
     thresh = float(np.median(level) * 1.08 + 1e-8)
     over = np.clip(level / thresh - 1.0, 0.0, 2.5)
     over = np.where(over < 0.6, over * over * 1.4, over * 0.75 + 0.15)
@@ -45,16 +58,17 @@ def _compress_band(
         mod = np.clip(section_gain, 0.8, 1.15)
         gr = np.clip(gr ** (1.0 / mod), 0.5, 1.0)
 
-    return (band * gr).astype(np.float64)
+    return (band * gr).astype(np.float32, copy=False)
 
 
 def multiband_compress(stereo: np.ndarray, sr: int, plan: MasteringDSPPlan) -> np.ndarray:
     p = plan.params
-    out = np.zeros_like(stereo, dtype=np.float64)
-    comp_curve = plan.compression_curve
+    out = np.zeros_like(stereo, dtype=np.float32)
+    n = stereo.shape[1]
+    comp_curve = _upsample_control_curve(plan.compression_curve, n, sr)
 
     for ch in range(stereo.shape[0]):
-        x = stereo[ch].astype(np.float64)
+        x = stereo[ch].astype(np.float32, copy=False)
         low, mid, high = _split_bands(x, sr)
         low_c = _compress_band(
             low, sr, p.low_ratio, p.mb_attack_ms, p.mb_release_ms * 1.25, comp_curve, max_gr_cap=0.14
@@ -73,4 +87,4 @@ def multiband_compress(stereo: np.ndarray, sr: int, plan: MasteringDSPPlan) -> n
         )
         out[ch] = low_c + mid_c + high_c
 
-    return out.astype(np.float64, copy=False)
+    return out.astype(np.float32, copy=False)

@@ -27,7 +27,6 @@ class SafeDSPParams:
     target_lufs: float
     true_peak_ceiling_db: float
 
-    # Extended psychoacoustic / premium chain (derived in safety.py, no extra LLM)
     exciter_amount: float = 0.0
     resonance_suppression: float = 0.0
     perceptual_density: float = 0.0
@@ -47,15 +46,21 @@ class SafeDSPParams:
     oversample_factor: int = 8
 
 
+# Control-rate for section compression automation (~10 Hz, not per-sample).
+SECTION_CONTROL_HZ: float = 10.0
+
+
 @dataclass
 class MasteringDSPPlan:
     """Full render plan passed to the mastering engine."""
 
     params: SafeDSPParams
     duration_sec: float = 0.0
-    # Per-sample modulation 0..1+ (built from sectional analysis)
-    width_curve: np.ndarray | None = None
-    saturation_curve: np.ndarray | None = None
+    # Duration-weighted section modifiers (scalars — curves were only ever averaged).
+    width_mod: float = 1.0
+    sat_mod: float = 1.0
+    exciter_mod: float = 1.0
+    # Low-rate compression automation; upsampled inside multiband_compress.
     compression_curve: np.ndarray | None = None
-    exciter_curve: np.ndarray | None = None
+    compression_control_hz: float = SECTION_CONTROL_HZ
     section_labels: list[str] = field(default_factory=list)

@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { MasteringIntensityBars } from "@/components/mastering/MasteringIntensityBars";
+import { MemoryProfilePanel } from "@/components/debug/MemoryProfilePanel";
+import { LeaveStudioModal } from "@/components/result/LeaveStudioModal";
 import { apiUrl, deleteJob, fetchResult, type JobResult } from "@/lib/api";
+import { canAccessFullResult } from "@/lib/auth";
 
 async function drawWaveform(canvas: HTMLCanvasElement, audioUrl: string, color: string) {
   const ctx = canvas.getContext("2d");
@@ -68,7 +71,11 @@ function fmtTime(s: number) {
 
 export default function ResultPage() {
   const params = useParams<{ jobId: string }>();
+  const router = useRouter();
+  const { user } = useAuth();
   const jobId = params.jobId;
+  const fullAccess = user ? canAccessFullResult(user.role) : false;
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [data, setData] = useState<JobResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState(false);
@@ -109,7 +116,25 @@ export default function ResultPage() {
     return () => { cancelled = true; };
   }, [jobId]);
 
-  // Delete job and sessionStorage when user leaves the result page
+  const leaveToStudio = () => {
+    sessionStorage.removeItem(`kord_result_${jobId}`);
+    void deleteJob(jobId);
+    router.push("/");
+  };
+
+  const requestLeave = () => setShowLeaveModal(true);
+
+  useEffect(() => {
+    window.history.pushState({ kordResultGuard: true }, "");
+    const onPopState = () => {
+      setShowLeaveModal(true);
+      window.history.pushState({ kordResultGuard: true }, "");
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  // Delete job when tab closes (not in-app navigation — modal handles that)
   useEffect(() => {
     const cleanup = () => {
       sessionStorage.removeItem(`kord_result_${jobId}`);
@@ -179,7 +204,10 @@ export default function ResultPage() {
     return (
       <main className="py-10 space-y-4">
         <p className="text-sm text-rose-300">{err}</p>
-        <Link className="text-sm text-accent underline" href={`/processing/${jobId}`}>Back to processing</Link>
+        <button type="button" className="text-sm text-accent underline" onClick={requestLeave}>
+          Back to studio
+        </button>
+        <LeaveStudioModal open={showLeaveModal} onCancel={() => setShowLeaveModal(false)} onConfirm={leaveToStudio} />
       </main>
     );
   }
@@ -202,6 +230,7 @@ export default function ResultPage() {
 
   return (
     <main className="flex flex-col gap-6 py-8">
+      <LeaveStudioModal open={showLeaveModal} onCancel={() => setShowLeaveModal(false)} onConfirm={leaveToStudio} />
       {/* Top 2-col section */}
       <div className="grid gap-5 lg:grid-cols-5">
         {/* Left: report header + actions */}
@@ -229,15 +258,16 @@ export default function ResultPage() {
                 </button>
               </div>
             </div>
-            <Link
-              href="/"
+            <button
+              type="button"
+              onClick={requestLeave}
               className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-mist-200/55 transition hover:bg-white/[0.07] hover:text-mist-200"
             >
               <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
                 <path d="M7 2L4 5.5 7 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              New upload
-            </Link>
+              Back to studio
+            </button>
           </div>
 
           {/* Action buttons */}
@@ -253,6 +283,7 @@ export default function ResultPage() {
               </svg>
               Download Master
             </a>
+            {fullAccess && (
             <div className="flex items-center gap-2.5 rounded-2xl border border-white/[0.09] bg-white/[0.04] px-4 py-2.5">
               <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="text-mist-200/45">
                 <path d="M6.5 2v9M3 5.5H1M12 5.5h-2M3 7.5H1M12 7.5h-2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
@@ -275,6 +306,7 @@ export default function ResultPage() {
                 />
               </button>
             </div>
+            )}
           </div>
         </div>
 
@@ -412,8 +444,8 @@ export default function ResultPage() {
         </div>
       </div>
 
-      {/* Before/after comparison (toggled) */}
-      {showComparison && (
+      {/* Before/after comparison (Early Access / Admin only) */}
+      {fullAccess && showComparison && (
         <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
           <p className="mb-4 text-[9px] font-bold uppercase tracking-[0.22em] text-mist-200/38">Audio Comparison</p>
           <div className="grid gap-5 lg:grid-cols-2">
@@ -439,6 +471,8 @@ export default function ResultPage() {
         </div>
       )}
 
+      {fullAccess && (
+      <>
       {/* Analysis + DSP grid */}
       <div className="grid gap-5 lg:grid-cols-2">
         {/* Analysis cards */}
@@ -530,6 +564,18 @@ export default function ResultPage() {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      <MemoryProfilePanel steps={data.memory_profile ?? []} />
+      </>
+      )}
+
+      {!fullAccess && (
+        <div className="rounded-2xl border border-violet/20 bg-violet/[0.05] p-5 text-center">
+          <p className="text-sm text-mist-200/65">
+            Rollout includes your mastered download only. Analysis, exports, and streaming simulations require Early Access.
+          </p>
         </div>
       )}
 

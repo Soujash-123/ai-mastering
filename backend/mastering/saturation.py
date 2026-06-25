@@ -50,12 +50,12 @@ def _split_4band(x: np.ndarray, sr: int) -> tuple[np.ndarray, np.ndarray, np.nda
 
 def analog_harmonic_engine(stereo: np.ndarray, sr: int, plan: MasteringDSPPlan) -> np.ndarray:
     p = plan.params
-    sat_curve = plan.saturation_curve
     factor = max(4, int(getattr(p, "oversample_factor", 8)))
-    out = np.zeros_like(stereo, dtype=np.float64)
+    out = np.zeros_like(stereo, dtype=np.float32)
+    sm = float(np.clip(plan.sat_mod, 0.75, 1.15))
 
     for ch in range(stereo.shape[0]):
-        x = stereo[ch].astype(np.float64)
+        x = stereo[ch].astype(np.float64, copy=False)
         sub, bass, mid, high = _split_4band(x, sr)
 
         a_sub = float(np.clip(p.saturation_amount * 0.04, 0.0, 0.06))
@@ -63,8 +63,7 @@ def analog_harmonic_engine(stereo: np.ndarray, sr: int, plan: MasteringDSPPlan) 
         a_mid = float(np.clip(p.harmonic_mid + p.saturation_amount * 0.32, 0.0, 0.45))
         a_high = float(np.clip(p.harmonic_high + p.saturation_amount * 0.22, 0.0, 0.32))
 
-        if sat_curve is not None:
-            sm = float(np.clip(np.mean(sat_curve), 0.75, 1.15))
+        if sm != 1.0:
             a_bass *= sm
             a_mid *= sm
             a_high *= sm
@@ -76,4 +75,4 @@ def analog_harmonic_engine(stereo: np.ndarray, sr: int, plan: MasteringDSPPlan) 
 
         out[ch] = sub_w + bass_w + mid_w + high_w
 
-    return out.astype(np.float64, copy=False)
+    return out.astype(np.float32, copy=False)

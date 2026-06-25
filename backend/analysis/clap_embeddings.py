@@ -1,4 +1,4 @@
-"""CLAP-style embedding hook. Uses TorchAudio + a small CNN stub when no CLAP weights are configured."""
+"""Lightweight spectral fingerprint stub (NumPy only — no Torch)."""
 
 from __future__ import annotations
 
@@ -6,51 +6,32 @@ import os
 from typing import Any
 
 import numpy as np
-import torch
-import torch.nn as nn
-
-
-class _TinyEncoder(nn.Module):
-    def __init__(self, dim: int = 512):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Conv1d(1, 32, kernel_size=7, stride=2, padding=3),
-            nn.GELU(),
-            nn.Conv1d(32, 64, kernel_size=5, stride=2, padding=2),
-            nn.GELU(),
-            nn.AdaptiveAvgPool1d(32),
-            nn.Flatten(),
-            nn.Linear(64 * 32, dim),
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.net(x)
 
 
 def compute_clap_like_embedding(mono_float: np.ndarray, sr: int) -> dict[str, Any]:
     """
-    Deterministic, lightweight embedding for conditioning downstream LLM context.
-    Replace with real CLAP checkpoint loading when you have weights + deps pinned.
+    Deterministic spectral fingerprint for optional API metadata.
+    Not used by the mastering LLM (see CompactContextBuilder).
     """
     _ = sr
-    device = torch.device("cpu")
-    x = torch.from_numpy(mono_float.astype(np.float32)).unsqueeze(0).unsqueeze(0)
-    # crop / pad to ~5s at sr for stability
-    max_len = int(sr * 5)
-    if x.shape[-1] > max_len:
-        x = x[..., :max_len]
-    elif x.shape[-1] < max_len:
-        pad = max_len - x.shape[-1]
-        x = torch.nn.functional.pad(x, (0, pad))
-
     dim = int(os.getenv("CLAP_EMBED_DIM", "512"))
-    model = _TinyEncoder(dim=dim).to(device)
-    model.eval()
-    with torch.no_grad():
-        emb = model(x.to(device)).cpu().numpy().ravel()
+    chunk = np.asarray(mono_float, dtype=np.float32).ravel()
+    max_len = min(chunk.size, int(sr * 5)) if sr > 0 else chunk.size
+    if max_len <= 0:
+        emb = np.zeros(dim, dtype=np.float64)
+    else:
+        chunk = chunk[:max_len]
+        n_fft = max(1024, 1 << int(np.ceil(np.log2(max(64, chunk.size // 4)))))
+        spec = np.abs(np.fft.rfft(chunk, n=n_fft))
+        if spec.size < dim:
+            spec = np.pad(spec, (0, dim - spec.size))
+        emb = spec[:dim].astype(np.float64)
+        norm = float(np.linalg.norm(emb))
+        if norm > 1e-12:
+            emb /= norm
 
     return {
-        "dim": int(emb.shape[0]),
+        "dim": dim,
         "vector_preview": [float(v) for v in emb[:16]],
         "l2_norm": float(np.linalg.norm(emb)),
     }

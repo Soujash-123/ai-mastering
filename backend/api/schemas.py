@@ -36,6 +36,14 @@ class ExportArtifact(BaseModel):
     download_url: str
 
 
+class MemoryStepReport(BaseModel):
+    name: str
+    rss_start_mb: float
+    rss_end_mb: float
+    rss_peak_mb: float
+    delta_mb: float
+
+
 class JobResultResponse(BaseModel):
     job_id: str
     status: JobStatus
@@ -47,3 +55,4 @@ class JobResultResponse(BaseModel):
     master_wav_url: str
     exports: list[ExportArtifact] = Field(default_factory=list)
     streaming_notes: list[str] = Field(default_factory=list)
+    memory_profile: list[MemoryStepReport] = Field(default_factory=list)
