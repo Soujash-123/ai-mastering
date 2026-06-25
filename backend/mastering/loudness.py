@@ -15,22 +15,23 @@ def _low_mid_density(stereo: np.ndarray, sr: int, amount: float) -> np.ndarray:
         return stereo
     nyq = sr / 2.0
     sos = signal.butter(2, min(320.0, nyq * 0.9) / nyq, btype="low", output="sos")
-    out = stereo.copy().astype(np.float64)
+    out = stereo.astype(np.float32, copy=True)
     for ch in range(stereo.shape[0]):
-        band = signal.sosfilt(sos, stereo[ch].astype(np.float64))
+        band = signal.sosfilt(sos, stereo[ch].astype(np.float32))
         out[ch] = stereo[ch] + band * amount * 0.045
-    return out
+    return out.astype(np.float32, copy=False)
 
 
 def perceptual_loudness_optimize(stereo: np.ndarray, sr: int, params: SafeDSPParams) -> np.ndarray:
-    """Early-stage spectral density only — avoids late tanh overload."""
     return _low_mid_density(stereo, sr, params.perceptual_density)
 
 
 def gradual_loudness_normalize(stereo: np.ndarray, sr: int, params: SafeDSPParams) -> np.ndarray:
-    """Multi-pass LUFS approach: small gain steps with limiter between (no +10 dB slam)."""
+    """Multi-pass LUFS approach: small gain steps with in-place limiter between."""
     meter = pyln.Meter(sr)
-    out = stereo.astype(np.float64, copy=True)
+    out = np.asarray(stereo, dtype=np.float32)
+    if not out.flags.writeable:
+        out = out.copy()
     max_step_db = 2.5
     passes = 5
 
@@ -44,11 +45,11 @@ def gradual_loudness_normalize(stereo: np.ndarray, sr: int, params: SafeDSPParam
                 break
             step_db = float(np.clip(delta, -max_step_db, max_step_db))
             out *= 10 ** (step_db / 20.0)
-            out = mastering_limiter(out, sr, params)
+            mastering_limiter(out, sr, params, out=out)
         except Exception:
             break
 
-    return out.astype(np.float64, copy=False)
+    return out.astype(np.float32, copy=False)
 
 
 def loudness_normalize(stereo: np.ndarray, sr: int, params: SafeDSPParams) -> np.ndarray:

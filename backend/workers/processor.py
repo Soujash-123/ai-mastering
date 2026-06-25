@@ -1,18 +1,21 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import logging
 import shutil
 from pathlib import Path
 
 from analysis.engine import analyze_audio_file
+from analysis.slim import slim_analysis_for_dsp
 from api.schemas import JobStatus
-from exports.pcm_export import export_variants, simulate_streaming_platforms
+from exports.pcm_export import export_all_artifacts
 from llm.intent import generate_mastering_plan
 from mastering.chain import master_file
 from mastering.safety import intent_to_safe_params
 from services.job_store import job_store
 from utils.config import get_settings
+from utils.memory import activate_job_memory_tracker, deactivate_job_memory_tracker, memory_step
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +30,13 @@ async def process_job(job_id: str, target_platform: str, user_intent: str) -> No
     async def bump(status: JobStatus, progress: float, message: str) -> None:
         await job_store.update(job_id, status=status, progress=progress, message=message)
 
+    tracker, tracker_token = activate_job_memory_tracker(job_id)
     try:
         logger.info("Job %s: started (platform=%s, input=%s)", job_id, target_platform, rec.input_path)
         await bump(JobStatus.analyzing, 0.1, "Analyzing audio…")
         logger.info("Job %s: analysis step started", job_id)
-        analysis = await asyncio.to_thread(analyze_audio_file, str(rec.input_path), target_platform, user_intent)
+        with memory_step("analysis"):
+            analysis = await asyncio.to_thread(analyze_audio_file, str(rec.input_path), target_platform, user_intent)
         logger.info(
             "Job %s: analysis completed (duration_sec=%s, integrated_lufs=%s)",
             job_id,
@@ -42,14 +47,19 @@ async def process_job(job_id: str, target_platform: str, user_intent: str) -> No
 
         await bump(JobStatus.reasoning, 0.35, "Generating adaptive mastering strategy…")
         logger.info("Job %s: LLM strategy step started", job_id)
-        intent, report, raw = await asyncio.to_thread(generate_mastering_plan, analysis)
+        with memory_step("llm_strategy"):
+            intent, report, raw = await asyncio.to_thread(generate_mastering_plan, analysis)
         logger.info("Job %s: LLM strategy step completed", job_id)
-        safe_intent, params = intent_to_safe_params(intent, float(analysis.get("integrated_lufs", -14.0)))
-        analysis_dsp = dict(analysis)
-        if safe_intent.sectional_processing:
-            analysis_dsp["llm_section_modifiers"] = [
-                s.model_dump() for s in safe_intent.sectional_processing
-            ]
+        with memory_step("dsp_safety_mapping"):
+            safe_intent, params = intent_to_safe_params(intent, float(analysis.get("integrated_lufs", -14.0)))
+            llm_modifiers = (
+                [s.model_dump() for s in safe_intent.sectional_processing]
+                if safe_intent.sectional_processing
+                else None
+            )
+            analysis_dsp = slim_analysis_for_dsp(analysis, llm_modifiers)
+            del analysis
+            gc.collect()
         logger.info(
             "Job %s: DSP safety mapping completed (target_lufs=%s, true_peak_ceiling_db=%s)",
             job_id,
@@ -68,15 +78,23 @@ async def process_job(job_id: str, target_platform: str, user_intent: str) -> No
         job_dir = rec.input_path.parent
         master_path = job_dir / "master.wav"
         logger.info("Job %s: master rendering started (%s)", job_id, master_path)
-        await asyncio.to_thread(master_file, str(rec.input_path), str(master_path), params, analysis_dsp)
+        with memory_step("mastering"):
+            await asyncio.to_thread(master_file, str(rec.input_path), str(master_path), params, analysis_dsp)
         logger.info("Job %s: master rendering completed", job_id)
 
         await bump(JobStatus.exporting, 0.8, "Exporting formats & streaming simulations…")
         exports_dir = job_dir / "exports"
         sim_dir = job_dir / "streaming_sim"
         logger.info("Job %s: export step started", job_id)
-        exports = await asyncio.to_thread(export_variants, master_path, exports_dir)
-        notes = await asyncio.to_thread(simulate_streaming_platforms, master_path, sim_dir)
+        is_rollout = rec.user_role == "ROLLOUT"
+        if is_rollout:
+            exports = []
+            notes = []
+            with memory_step("export_all"):
+                pass
+        else:
+            with memory_step("export_all"):
+                exports, notes = await asyncio.to_thread(export_all_artifacts, master_path, exports_dir, sim_dir)
 
         exports_public: list[dict[str, str]] = []
         for item in exports:
@@ -97,11 +115,23 @@ async def process_job(job_id: str, target_platform: str, user_intent: str) -> No
             master_path=master_path,
             exports=exports_public,
             streaming_notes=notes,
+            memory_profile=tracker.reports_as_dicts(),
         )
         logger.info("Job %s: completed (exports=%d, notes=%d)", job_id, len(exports_public), len(notes))
+        tracker.log_summary()
     except Exception as exc:  # noqa: BLE001
         logger.exception("Job %s: failed during processing (%s)", job_id, exc)
-        await job_store.update(job_id, status=JobStatus.failed, message="Failed", error=str(exc), progress=1.0)
+        tracker.log_summary()
+        await job_store.update(
+            job_id,
+            status=JobStatus.failed,
+            message="Failed",
+            error=str(exc),
+            progress=1.0,
+            memory_profile=tracker.reports_as_dicts(),
+        )
+    finally:
+        deactivate_job_memory_tracker(tracker_token)
 
 
 def persist_upload(job_id: str, src_path: Path) -> Path:

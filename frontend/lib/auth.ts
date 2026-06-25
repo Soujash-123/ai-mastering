@@ -12,6 +12,15 @@ export type AuthUser = {
 };
 
 const TOKEN_KEY = "kord_access_token";
+const TOKEN_MAX_AGE_SEC = 60 * 60 * 24 * 7;
+
+function setTokenCookie(token: string): void {
+  document.cookie = `${TOKEN_KEY}=${encodeURIComponent(token)}; path=/; max-age=${TOKEN_MAX_AGE_SEC}; SameSite=Lax`;
+}
+
+function clearTokenCookie(): void {
+  document.cookie = `${TOKEN_KEY}=; path=/; max-age=0; SameSite=Lax`;
+}
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -20,10 +29,12 @@ export function getToken(): string | null {
 
 export function setToken(token: string): void {
   localStorage.setItem(TOKEN_KEY, token);
+  setTokenCookie(token);
 }
 
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
+  clearTokenCookie();
 }
 
 export function authHeaders(): HeadersInit {
@@ -37,20 +48,32 @@ export function roleBadgeLabel(role: UserRole): string {
   return "Rollout";
 }
 
-export function maxUploadDurationSec(role: UserRole): number | null {
-  if (role === "ADMIN") return null;
-  if (role === "EARLY_ACCESS") return 300;
-  return 180;
+export function maxUploadDurationSec(role: UserRole): number {
+  if (role === "ROLLOUT") return 120;
+  return 300;
 }
 
-export function canAccessSimulations(role: UserRole): boolean {
+export function uploadLimitLabel(role: UserRole): string {
+  if (role === "ROLLOUT") return "2 minutes";
+  return "5 minutes";
+}
+
+export function canAccessAdvancedFeatures(role: UserRole): boolean {
   return role === "ADMIN" || role === "EARLY_ACCESS";
 }
 
+export function canAccessFullResult(role: UserRole): boolean {
+  return canAccessAdvancedFeatures(role);
+}
+
+export function canAccessSimulations(role: UserRole): boolean {
+  return canAccessFullResult(role);
+}
+
 export function durationLimitMessage(role: UserRole): string {
-  if (role === "ROLLOUT") return "Your Rollout plan allows tracks up to 3 minutes.";
+  if (role === "ROLLOUT") return "Rollout allows tracks up to 2 minutes.";
   if (role === "EARLY_ACCESS") return "Early Access allows tracks up to 5 minutes.";
-  return "Track exceeds your upload limit.";
+  return "Admin uploads are limited to 5 minutes.";
 }
 
 export async function getAudioDurationSec(file: File): Promise<number> {
@@ -95,7 +118,9 @@ export async function login(email: string, password: string): Promise<AuthUser> 
 export async function logout(): Promise<void> {
   try {
     await fetch(apiUrl("/api/auth/logout"), { method: "POST", headers: authHeaders() });
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   clearToken();
 }
 
@@ -111,7 +136,9 @@ async function parseApiError(res: Response): Promise<string> {
     const json = JSON.parse(text) as { detail?: string | { msg?: string }[] };
     if (typeof json.detail === "string") return json.detail;
     if (Array.isArray(json.detail)) return json.detail.map((d) => d.msg ?? "").join(", ") || text;
-  } catch { /* fall through */ }
+  } catch {
+    /* fall through */
+  }
   return text || res.statusText;
 }
 

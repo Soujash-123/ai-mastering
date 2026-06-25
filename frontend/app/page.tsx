@@ -2,7 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { createJob } from "@/lib/api";
+import {
+  canAccessAdvancedFeatures,
+  durationLimitMessage,
+  getAudioDurationSec,
+  maxUploadDurationSec,
+  uploadLimitLabel,
+} from "@/lib/auth";
 
 const PLATFORMS = [
   { value: "Spotify", label: "Streaming (Default)" },
@@ -57,6 +65,9 @@ function SideBars({ side }: { side: "left" | "right" }) {
 
 export default function UploadPage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const advancedAllowed = user ? canAccessAdvancedFeatures(user.role) : false;
+  const maxDurationSec = user ? maxUploadDurationSec(user.role) : 120;
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -67,17 +78,32 @@ export default function UploadPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const onFiles = useCallback((files: FileList | null) => {
-    if (!files?.length) return;
-    const file = files[0];
-    const ext = file.name.toLowerCase().split(".").pop();
-    if (ext !== "wav" && ext !== "flac") {
-      setError("Only .wav and .flac files are accepted.");
-      return;
-    }
-    setError(null);
-    setSelectedFile(file);
-  }, []);
+  const onFiles = useCallback(
+    async (files: FileList | null) => {
+      if (!files?.length) return;
+      const file = files[0];
+      const ext = file.name.toLowerCase().split(".").pop();
+      if (ext !== "wav" && ext !== "flac") {
+        setError("Only .wav and .flac files are accepted.");
+        return;
+      }
+      try {
+        const duration = await getAudioDurationSec(file);
+        if (duration > maxDurationSec + 0.05) {
+          setError(user ? durationLimitMessage(user.role) : "Track exceeds upload limit.");
+          setSelectedFile(null);
+          return;
+        }
+      } catch {
+        setError("Could not read audio duration.");
+        setSelectedFile(null);
+        return;
+      }
+      setError(null);
+      setSelectedFile(file);
+    },
+    [maxDurationSec, user],
+  );
 
   const handleMaster = useCallback(async () => {
     if (!selectedFile) return;
@@ -120,8 +146,10 @@ export default function UploadPage() {
             </span>
           </h1>
           <p className="mx-auto max-w-md text-sm leading-relaxed text-mist-200/55">
-            Deep spectral analysis → GPT mastering intent → adaptive DSP chain →{" "}
-            streaming-ready exports. No presets. No compromise.
+            Upload WAV or FLAC — up to {user ? uploadLimitLabel(user.role) : "2 minutes"} per track.
+            {advancedAllowed
+              ? " Deep analysis, adaptive mastering, and streaming-ready exports."
+              : " Optimized defaults on the Rollout plan."}
           </p>
         </header>
 
@@ -299,7 +327,8 @@ export default function UploadPage() {
         )}
         {error && !selectedFile && <p className="text-xs text-rose-300">{error}</p>}
 
-        {/* Advanced Settings */}
+        {/* Advanced Settings — Early Access / Admin only */}
+        {advancedAllowed ? (
         <div className="w-full max-w-3xl overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02]">
           <button
             type="button"
@@ -440,6 +469,14 @@ export default function UploadPage() {
             </div>
           )}
         </div>
+        ) : (
+          <div className="w-full max-w-3xl rounded-2xl border border-white/[0.08] bg-white/[0.02] px-5 py-4 text-center">
+            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-mist-200/45">Advanced Settings</p>
+            <p className="mt-2 text-xs text-mist-200/45">
+              Platform, creative intent, and reference controls are available on Early Access and Admin plans.
+            </p>
+          </div>
+        )}
 
         {/* Trust badges */}
         <div className="flex w-full max-w-3xl flex-col gap-3 sm:flex-row">

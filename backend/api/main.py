@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import sys
 from pathlib import Path
-from typing import Union
+from typing import Annotated, Union
 
 # Allow `uvicorn api.main:app` from backend/ without PYTHONPATH tweaks
 _BACKEND_ROOT = Path(__file__).resolve().parents[1]
@@ -12,14 +12,22 @@ if str(_BACKEND_ROOT) not in sys.path:
 
 import numpy as np
 import soundfile as sf
-from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
+from api.result_builder import build_job_result, build_ws_result_payload
 from api.schemas import JobCreateResponse, JobResultResponse, JobStatus, JobStatusResponse
+from auth.admin_router import router as admin_router
+from auth.database import init_db
+from auth.dependencies import get_current_user
+from auth.early_access_router import router as early_access_router
+from auth.models import User
+from auth.permissions import duration_limit_message, max_upload_duration_sec
+from auth.router import router as auth_router
+from auth.schemas import UserRole
 from services.job_store import job_store, delete_job_by_id, schedule_delete
 from utils.config import get_settings
-from utils.json_safe import to_json_safe
 from utils.log import configure_logging
 from workers.processor import process_job
 
@@ -35,6 +43,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(auth_router)
+app.include_router(admin_router)
+app.include_router(early_access_router)
+
+
+@app.on_event("startup")
+def _startup() -> None:
+    init_db()
 
 _ALLOWED = frozenset({".wav", ".flac"})
 
@@ -69,6 +86,7 @@ def _normalize_upload_to_job_wav(src: bytes, dest_wav: Path, original_suffix: st
 @app.post("/api/jobs", response_model=JobCreateResponse)
 async def create_job(
     background_tasks: BackgroundTasks,
+    user: Annotated[User, Depends(get_current_user)],
     file: UploadFile = File(...),
     target_platform: str = Form("Spotify"),
     user_intent: str = Form(""),
@@ -84,7 +102,12 @@ async def create_job(
             detail="Only WAV and FLAC uploads are supported (no transcoding pipeline).",
         )
 
-    rec = await job_store.create_job(settings.data_dir, ephemeral=ephemeral)
+    rec = await job_store.create_job(
+        settings.data_dir,
+        ephemeral=ephemeral,
+        user_id=user.id,
+        user_role=user.role,
+    )
     assert rec.input_path is not None
 
     try:
@@ -92,7 +115,25 @@ async def create_job(
         await file.close()
         _normalize_upload_to_job_wav(content, rec.input_path, suffix)
     except ValueError as exc:
+        await delete_job_by_id(rec.job_id)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        info = sf.info(str(rec.input_path))
+        duration_sec = float(info.duration)
+    except Exception as exc:
+        await delete_job_by_id(rec.job_id)
+        raise HTTPException(status_code=400, detail="Could not read audio duration") from exc
+
+    limit = max_upload_duration_sec(user.role)
+    if limit is not None and duration_sec > limit + 0.05:
+        await delete_job_by_id(rec.job_id)
+        raise HTTPException(status_code=413, detail=duration_limit_message(user.role))
+
+    # Rollout users always use default mastering options (no advanced API overrides).
+    if user.role == UserRole.ROLLOUT.value:
+        target_platform = "Spotify"
+        user_intent = ""
 
     background_tasks.add_task(process_job, rec.job_id, target_platform, user_intent)
     return JobCreateResponse(job_id=rec.job_id)
@@ -122,18 +163,7 @@ async def job_result(job_id: str) -> Union[JSONResponse, JobResultResponse]:
     if not rec.master_path:
         raise HTTPException(status_code=500, detail="Missing master path")
 
-    return JobResultResponse(
-        job_id=rec.job_id,
-        status=rec.status,
-        analysis=to_json_safe(rec.analysis or {}),
-        raw_intent=to_json_safe(rec.raw_intent) if rec.raw_intent is not None else None,
-        safe_intent=to_json_safe(rec.safe_intent) if rec.safe_intent is not None else None,
-        report=to_json_safe(rec.report or {}),
-        input_url=f"/api/jobs/{job_id}/files/input",
-        master_wav_url=f"/api/jobs/{job_id}/files/master",
-        exports=rec.exports,
-        streaming_notes=rec.streaming_notes,
-    )
+    return build_job_result(rec)
 
 
 @app.get("/api/jobs/{job_id}/artifacts/{file_path:path}")
@@ -206,19 +236,7 @@ async def ws_job_progress(websocket: WebSocket, job_id: str) -> None:
             })
 
             if rec.status == JobStatus.completed:
-                await websocket.send_json({
-                    "type": "result",
-                    "job_id": rec.job_id,
-                    "status": rec.status.value,
-                    "analysis": to_json_safe(rec.analysis or {}),
-                    "raw_intent": to_json_safe(rec.raw_intent) if rec.raw_intent is not None else None,
-                    "safe_intent": to_json_safe(rec.safe_intent) if rec.safe_intent is not None else None,
-                    "report": to_json_safe(rec.report or {}),
-                    "input_url": f"/api/jobs/{job_id}/files/input",
-                    "master_wav_url": f"/api/jobs/{job_id}/files/master",
-                    "exports": rec.exports,
-                    "streaming_notes": rec.streaming_notes,
-                })
+                await websocket.send_json(build_ws_result_payload(rec))
                 # Wait for client to disconnect (navigating to result page)
                 # then schedule ephemeral cleanup
                 try:

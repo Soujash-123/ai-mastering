@@ -11,11 +11,13 @@ def _safe_db(x: float) -> float:
     return float(20.0 * np.log10(max(x, 1e-12)))
 
 
-def _energy_band_ratio(mag: np.ndarray, freqs: np.ndarray, lo: float, hi: float) -> float:
-    band = mag[(freqs >= lo) & (freqs <= hi), :]
-    if band.size == 0:
-        return 0.0
-    return float(np.mean(band) / (np.mean(mag) + 1e-12))
+def _band_ratio_series(mag: np.ndarray, freqs: np.ndarray, lo: float, hi: float) -> np.ndarray:
+    mask = (freqs >= lo) & (freqs <= hi)
+    if not np.any(mask):
+        return np.zeros(mag.shape[1], dtype=np.float32)
+    band_mean = mag[mask, :].mean(axis=0)
+    total_mean = mag.mean(axis=0) + 1e-10
+    return (band_mean / total_mean).astype(np.float32)
 
 
 def _stereo_width_and_phase(stereo: np.ndarray) -> tuple[float, float]:
@@ -32,29 +34,32 @@ def _stereo_width_and_phase(stereo: np.ndarray) -> tuple[float, float]:
 
 
 def extract_frame_features(stereo: np.ndarray, sr: int, hop_length: int = 512) -> dict[str, Any]:
-    mono = np.mean(stereo, axis=0)
+    mono = np.mean(stereo, axis=0, dtype=np.float32)
     rms = librosa.feature.rms(y=mono, hop_length=hop_length)[0]
     times = librosa.frames_to_time(np.arange(len(rms)), sr=sr, hop_length=hop_length)
     stft = librosa.stft(mono, n_fft=2048, hop_length=hop_length)
-    mag = np.abs(stft) + 1e-10
+    mag = (np.abs(stft) + 1e-10).astype(np.float32)
+    del stft
     freqs = librosa.fft_frequencies(sr=sr, n_fft=2048)
 
     centroid = librosa.feature.spectral_centroid(S=mag, sr=sr)[0]
     rolloff = librosa.feature.spectral_rolloff(S=mag, sr=sr)[0]
     contrast = librosa.feature.spectral_contrast(S=mag, sr=sr)
     contrast_mean = np.mean(contrast, axis=0)
+    del contrast
     zcr = librosa.feature.zero_crossing_rate(mono, hop_length=hop_length)[0]
     onset = librosa.onset.onset_strength(y=mono, sr=sr, hop_length=hop_length)
 
-    low_end = np.array([_energy_band_ratio(mag[:, i : i + 1], freqs, 20.0, 120.0) for i in range(mag.shape[1])])
-    sub = np.array([_energy_band_ratio(mag[:, i : i + 1], freqs, 20.0, 60.0) for i in range(mag.shape[1])])
-    vocal = np.array([_energy_band_ratio(mag[:, i : i + 1], freqs, 1000.0, 4000.0) for i in range(mag.shape[1])])
-    harsh = np.array([_energy_band_ratio(mag[:, i : i + 1], freqs, 2500.0, 5500.0) for i in range(mag.shape[1])])
-    warm = np.array([_energy_band_ratio(mag[:, i : i + 1], freqs, 150.0, 450.0) for i in range(mag.shape[1])])
-    bright = np.array([_energy_band_ratio(mag[:, i : i + 1], freqs, 6000.0, 12000.0) for i in range(mag.shape[1])])
-    sib = np.array([_energy_band_ratio(mag[:, i : i + 1], freqs, 5000.0, 10000.0) for i in range(mag.shape[1])])
+    low_end = _band_ratio_series(mag, freqs, 20.0, 120.0)
+    sub = _band_ratio_series(mag, freqs, 20.0, 60.0)
+    vocal = _band_ratio_series(mag, freqs, 1000.0, 4000.0)
+    harsh = _band_ratio_series(mag, freqs, 2500.0, 5500.0)
+    warm = _band_ratio_series(mag, freqs, 150.0, 450.0)
+    bright = _band_ratio_series(mag, freqs, 6000.0, 12000.0)
+    sib = _band_ratio_series(mag, freqs, 5000.0, 10000.0)
 
     flux = np.sqrt(np.sum(np.diff(mag, axis=1, prepend=mag[:, :1]) ** 2, axis=0))
+    del mag
     transient_density = np.convolve((onset > np.percentile(onset, 85)).astype(float), np.ones(8), mode="same") / 8.0
     punch = np.clip((flux / (np.mean(flux) + 1e-12)) * (rms / (np.mean(rms) + 1e-12)), 0.0, 4.0)
 
@@ -138,4 +143,3 @@ def compute_global_summary(stereo: np.ndarray, sr: int, frames: dict[str, Any]) 
         "emotional_intensity_estimation": emotional_intensity,
         "immersion_depth_estimation": immersion_depth,
     }
-

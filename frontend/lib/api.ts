@@ -1,7 +1,21 @@
+import { authHeaders } from "./auth";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
 
 export function apiUrl(path: string) {
   return `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+async function parseApiError(res: Response): Promise<string> {
+  const text = await res.text();
+  try {
+    const json = JSON.parse(text) as { detail?: string | { msg?: string }[] };
+    if (typeof json.detail === "string") return json.detail;
+    if (Array.isArray(json.detail)) return json.detail.map((d) => d.msg ?? "").join(", ") || text;
+  } catch {
+    /* fall through */
+  }
+  return text || res.statusText;
 }
 
 export type JobStatus = {
@@ -10,6 +24,14 @@ export type JobStatus = {
   progress: number;
   message: string;
   updated_at: string;
+};
+
+export type MemoryStepReport = {
+  name: string;
+  rss_start_mb: number;
+  rss_end_mb: number;
+  rss_peak_mb: number;
+  delta_mb: number;
 };
 
 export type JobResult = {
@@ -43,6 +65,7 @@ export type JobResult = {
   master_wav_url: string;
   exports: { profile: string; format: string; path: string; download_url: string }[];
   streaming_notes: string[];
+  memory_profile?: MemoryStepReport[];
 };
 
 export async function createJob(file: File, targetPlatform: string, userIntent: string, ephemeral = true) {
@@ -51,21 +74,28 @@ export async function createJob(file: File, targetPlatform: string, userIntent: 
   fd.append("target_platform", targetPlatform);
   fd.append("user_intent", userIntent);
   fd.append("ephemeral", String(ephemeral));
-  const res = await fetch(apiUrl("/api/jobs"), { method: "POST", body: fd });
-  if (!res.ok) throw new Error(await res.text());
+  const res = await fetch(apiUrl("/api/jobs"), {
+    method: "POST",
+    headers: authHeaders(),
+    body: fd,
+  });
+  if (!res.ok) throw new Error(await parseApiError(res));
   return (await res.json()) as { job_id: string };
 }
 
 export async function fetchStatus(jobId: string) {
   const res = await fetch(apiUrl(`/api/jobs/${jobId}/status`), { cache: "no-store" });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(await parseApiError(res));
   return (await res.json()) as JobStatus;
 }
 
 export async function fetchResult(jobId: string) {
-  const res = await fetch(apiUrl(`/api/jobs/${jobId}/result`), { cache: "no-store" });
+  const res = await fetch(apiUrl(`/api/jobs/${jobId}/result`), {
+    cache: "no-store",
+    headers: authHeaders(),
+  });
   if (res.status === 409) return null;
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(await parseApiError(res));
   return (await res.json()) as JobResult;
 }
 
@@ -79,7 +109,7 @@ export function wsUrl(path: string): string {
 
 export async function deleteJob(jobId: string): Promise<void> {
   try {
-    await fetch(apiUrl(`/api/jobs/${jobId}`), { method: "DELETE", keepalive: true });
+    await fetch(apiUrl(`/api/jobs/${jobId}`), { method: "DELETE", headers: authHeaders(), keepalive: true });
   } catch {
     /* best-effort */
   }

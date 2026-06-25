@@ -50,8 +50,12 @@ class Settings(BaseSettings):
 
     openai_api_key: Optional[str] = None
     openai_mastering_model: str = "gpt-5"
-    # If unset or empty, use a dated temp folder (refreshed daily).
     ai_mastering_data_dir: Optional[Path] = None
+
+    database_url: str = "sqlite:///./data/kord_auth.db"
+    jwt_secret_key: str = "change-me-use-long-random-secret-in-production"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 60 * 24 * 7
 
     @property
     def data_dir(self) -> Path:

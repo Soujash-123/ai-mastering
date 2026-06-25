@@ -9,10 +9,14 @@ services:
     environment:
       - OPENAI_MASTERING_MODEL=${OPENAI_MASTERING_MODEL:-gpt-5.1}
       - AI_MASTERING_DATA_DIR=${AI_MASTERING_DATA_DIR:-/app/backend/data}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:////app/backend/data/kord_auth.db}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-me-use-a-long-random-secret-in-production}
     expose:
       - "8000"
     ports:
       - "8000:8000"
+    command: >
+      sh -c "python scripts/seed_access_users.py && uvicorn api.main:app --host 0.0.0.0 --port 8000"
     volumes:
       - backend_data:/app/backend/data
 
@@ -22,9 +26,9 @@ services:
       dockerfile: Dockerfile
       target: runner
       args:
-        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-}
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost}
     environment:
-      - NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE:-}
+      - NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE:-http://localhost}
     expose:
       - "3000"
     depends_on:
