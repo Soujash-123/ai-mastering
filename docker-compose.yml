@@ -43,9 +43,13 @@ services:
       - "80"
     ports:
       - "80:80"
+      - "443:443"
     depends_on:
       - frontend-app
       - backend
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot
 
 volumes:
   backend_data:
