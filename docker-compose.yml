@@ -26,9 +26,9 @@ services:
       dockerfile: Dockerfile
       target: runner
       args:
-        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost}
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-https://kordstudio.syntalixconsultancy.com}
     environment:
-      - NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE:-http://localhost}
+      - NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE:-https://kordstudio.syntalixconsultancy.com}
     expose:
       - "3000"
     depends_on:
