@@ -14,8 +14,8 @@ from datetime import date, datetime
 
 
 _LOCAL_CORS_ORIGINS = (
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
+    "http://localhost",
+"http://127.0.0.1",
     "http://kordstudio.syntalixconsultancy.com",
     "https://kordstudio.syntalixconsultancy.com",
 )

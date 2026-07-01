@@ -70,7 +70,7 @@ jobs:
           set -Eeuo pipefail
 
           backend_env_b64="$(printf 'OPENAI_API_KEY=%s\nOPENAI_MASTERING_MODEL=%s\nAI_MASTERING_DATA_DIR=%s\n' "${OPENAI_API_KEY}" "${OPENAI_MASTERING_MODEL:-gpt-5.1}" "${AI_MASTERING_DATA_DIR:-/app/backend/data}" | base64 -w0)"
-          root_env_b64="$(printf 'OPENAI_API_KEY=%s\nOPENAI_MASTERING_MODEL=%s\nAI_MASTERING_DATA_DIR=%s\nNEXT_PUBLIC_API_BASE=%s\n' "${OPENAI_API_KEY}" "${OPENAI_MASTERING_MODEL:-gpt-5.1}" "${AI_MASTERING_DATA_DIR:-/app/backend/data}" "${NEXT_PUBLIC_API_BASE}" | base64 -w0)"
+          root_env_b64="$(printf 'OPENAI_API_KEY=%s\nOPENAI_MASTERING_MODEL=%s\nAI_MASTERING_DATA_DIR=%s\nNEXT_PUBLIC_API_BASE=%s\nNGINX_CONF=%s\n' "${OPENAI_API_KEY}" "${OPENAI_MASTERING_MODEL:-gpt-5.1}" "${AI_MASTERING_DATA_DIR:-/app/backend/data}" "${NEXT_PUBLIC_API_BASE}" "default.conf" | base64 -w0)"
 
           ssh "${EC2_USER}@${EC2_HOST}" "
             set -Eeuo pipefail

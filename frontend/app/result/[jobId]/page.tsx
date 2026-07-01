@@ -8,6 +8,7 @@ import { MemoryProfilePanel } from "@/components/debug/MemoryProfilePanel";
 import { LeaveStudioModal } from "@/components/result/LeaveStudioModal";
 import { apiUrl, deleteJob, fetchResult, type JobResult } from "@/lib/api";
 import { canAccessFullResult } from "@/lib/auth";
+import { AudioComparisonPlayer } from "@/components/preview/AudioComparisonPlayer";
 
 async function drawWaveform(canvas: HTMLCanvasElement, audioUrl: string, color: string) {
   const ctx = canvas.getContext("2d");
@@ -79,7 +80,6 @@ export default function ResultPage() {
   const [data, setData] = useState<JobResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState(false);
-  const beforeRef = useRef<HTMLCanvasElement>(null);
   const masterAudioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
@@ -174,9 +174,6 @@ export default function ResultPage() {
         }
         if (!cancelled) setMasterBars(rawBars.map((v) => (globalMax > 0 ? v / globalMax : 0.3)));
       } catch { /* non-critical */ }
-      // Draw red waveform for before-comparison canvas
-      if (!cancelled && beforeRef.current)
-        await drawWaveform(beforeRef.current, urls.in, "rgba(255,75,75,0.72)");
     })();
     return () => { cancelled = true; };
   }, [urls]);
@@ -454,19 +451,28 @@ export default function ResultPage() {
                 <div className="h-1.5 w-1.5 rounded-full bg-mist-200/35" />
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-mist-200/50">Before</p>
               </div>
-              <canvas ref={beforeRef} width={900} height={80} className="w-full rounded-xl bg-ink-950/60" />
-              <audio className="w-full" controls src={urls.in} />
+              <canvas
+                width={900}
+                height={80}
+                className="w-full rounded-xl bg-ink-950/60"
+                ref={(el) => { if (el && urls) void drawWaveform(el, urls.in, "rgba(255,75,75,0.72)"); }}
+              />
             </div>
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <div className="h-1.5 w-1.5 rounded-full bg-accent/80" />
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-accent/60">After</p>
               </div>
-              <canvas width={900} height={80} className="w-full rounded-xl bg-ink-950/60 shadow-[0_0_20px_rgba(110,231,255,0.06)]"
+              <canvas
+                width={900}
+                height={80}
+                className="w-full rounded-xl bg-ink-950/60 shadow-[0_0_20px_rgba(110,231,255,0.06)]"
                 ref={(el) => { if (el && urls) void drawWaveform(el, urls.out, "gradient"); }}
               />
-              <audio className="w-full" controls src={urls.out} />
             </div>
+          </div>
+          <div className="mt-5">
+            <AudioComparisonPlayer beforeUrl={urls.in} afterUrl={urls.out} />
           </div>
         </div>
       )}
