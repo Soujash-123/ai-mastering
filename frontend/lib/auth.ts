@@ -11,8 +11,13 @@ export type AuthUser = {
   created_at: string;
 };
 
-const TOKEN_KEY = "kord_access_token";
+export const TOKEN_KEY = "kord_access_token";
 const TOKEN_MAX_AGE_SEC = 60 * 60 * 24 * 7;
+
+function readTokenCookie(): string | null {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${TOKEN_KEY}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
 
 function setTokenCookie(token: string): void {
   document.cookie = `${TOKEN_KEY}=${encodeURIComponent(token)}; path=/; max-age=${TOKEN_MAX_AGE_SEC}; SameSite=Lax`;
@@ -22,9 +27,22 @@ function clearTokenCookie(): void {
   document.cookie = `${TOKEN_KEY}=; path=/; max-age=0; SameSite=Lax`;
 }
 
+/** Cookie is the source of truth (matches middleware); localStorage stays in sync for legacy sessions. */
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
+  const fromCookie = readTokenCookie();
+  if (fromCookie) return fromCookie;
+  const fromStorage = localStorage.getItem(TOKEN_KEY);
+  if (fromStorage) {
+    setTokenCookie(fromStorage);
+    return fromStorage;
+  }
+  return null;
+}
+
+/** Full page navigation so middleware receives the session cookie (avoids stale Router Cache). */
+export function redirectAfterAuth(href = "/"): void {
+  window.location.replace(href);
 }
 
 export function setToken(token: string): void {

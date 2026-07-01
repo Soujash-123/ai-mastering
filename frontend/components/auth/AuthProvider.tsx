@@ -9,6 +9,7 @@ import {
   getToken,
   login as apiLogin,
   logout as apiLogout,
+  redirectAfterAuth,
   register as apiRegister,
 } from "@/lib/auth";
 
@@ -63,13 +64,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loading, user, pathname, router]);
 
   const login = useCallback(async (email: string, password: string) => {
-    const u = await apiLogin(email, password);
-    setUser(u);
+    await apiLogin(email, password);
+    redirectAfterAuth("/");
   }, []);
 
   const register = useCallback(async (fullName: string, email: string, password: string) => {
-    const u = await apiRegister(fullName, email, password);
-    setUser(u);
+    await apiRegister(fullName, email, password);
+    redirectAfterAuth("/");
   }, []);
 
   const logout = useCallback(async () => {

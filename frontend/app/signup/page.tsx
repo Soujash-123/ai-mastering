@@ -22,6 +22,7 @@ export default function SignupPage() {
       await register(fullName, email, password);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
+    } finally {
       setBusy(false);
     }
   };

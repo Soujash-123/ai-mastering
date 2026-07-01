@@ -23,7 +23,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     <>
       <nav className="sticky top-0 z-20 border-b border-white/[0.06] bg-ink-950/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5">
-          <Link href="/" className="group flex items-center gap-2.5">
+          <Link href="/" prefetch={false} className="group flex items-center gap-2.5">
             <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
               <path d="M14 2L25 8V20L14 26L3 20V8L14 2Z" stroke="rgba(110,231,255,0.6)" strokeWidth="1.2" fill="rgba(110,231,255,0.07)" />
               <path d="M14 8L20 11.5V18.5L14 22L8 18.5V11.5L14 8Z" fill="rgba(110,231,255,0.25)" />
