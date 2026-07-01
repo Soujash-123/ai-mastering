@@ -16,6 +16,8 @@ from mastering.safety import intent_to_safe_params
 from services.job_store import job_store
 from utils.config import get_settings
 from utils.memory import activate_job_memory_tracker, deactivate_job_memory_tracker, memory_step
+from auth.database import SessionLocal
+from auth.models import User as UserModel
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +119,23 @@ async def process_job(job_id: str, target_platform: str, user_intent: str) -> No
             streaming_notes=notes,
             memory_profile=tracker.reports_as_dicts(),
         )
+        # Increment per-user mastered counter (best-effort)
+        try:
+            if rec.user_id:
+                db = SessionLocal()
+                try:
+                    usr = db.get(UserModel, rec.user_id)
+                    if usr is not None:
+                        usr.mastered_count = (usr.mastered_count or 0) + 1
+                        db.add(usr)
+                        db.commit()
+                finally:
+                    try:
+                        db.close()
+                    except Exception:
+                        pass
+        except Exception:
+            logger.exception("Failed to bump mastered_count for user %s", rec.user_id)
         logger.info("Job %s: completed (exports=%d, notes=%d)", job_id, len(exports_public), len(notes))
         tracker.log_summary()
     except Exception as exc:  # noqa: BLE001

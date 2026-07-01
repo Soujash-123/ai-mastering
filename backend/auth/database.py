@@ -45,10 +45,19 @@ def _ensure_provisioned_column() -> None:
         if "users" not in insp.get_table_names():
             return
         cols = {c["name"] for c in insp.get_columns("users")}
-        if "is_provisioned" in cols:
-            return
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE users ADD COLUMN is_provisioned BOOLEAN NOT NULL DEFAULT 0"))
+        # Add missing columns independently (best-effort)
+        try:
+            if "is_provisioned" not in cols:
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN is_provisioned BOOLEAN NOT NULL DEFAULT 0"))
+        except Exception:
+            pass
+        try:
+            if "mastered_count" not in cols:
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN mastered_count INTEGER NOT NULL DEFAULT 0"))
+        except Exception:
+            pass
     except Exception:
         pass
 

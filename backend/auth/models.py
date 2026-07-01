@@ -22,6 +22,7 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(32), nullable=False, default="ROLLOUT")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_provisioned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    mastered_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
