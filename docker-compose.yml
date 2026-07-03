@@ -27,6 +27,9 @@ services:
       target: runner
       args:
         NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:8000}
+        NEXT_PUBLIC_EMAILJS_SERVICE_ID: ${NEXT_PUBLIC_EMAILJS_SERVICE_ID:-service_jagh7xo}
+        NEXT_PUBLIC_EMAILJS_TEMPLATE_ID: ${NEXT_PUBLIC_EMAILJS_TEMPLATE_ID:-template_1e43028}
+        NEXT_PUBLIC_EMAILJS_PUBLIC_KEY: ${NEXT_PUBLIC_EMAILJS_PUBLIC_KEY:-pNmyfW4fFM7YMLQLu}
     environment:
       - NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE:-http://localhost:8000}
     expose:
