@@ -1,0 +1,424 @@
+name: Release to Production
+
+# ---------------------------------------------------------------------------
+# Production-grade release pipeline.
+#
+# Source of truth : Syntalix-AI/kord-studio        (this repository)
+# Production repo  : Soujash-123/ai-mastering       (deployment target)
+#
+# Guarantees:
+#   * Production history is NEVER rewritten (no --force, no history deletion).
+#   * A backup branch of the current production state is created every release.
+#   * Nothing is pushed to production unless EVERY validation gate passes.
+#   * If production has diverged unexpectedly, the plain (non-force) push is
+#     rejected by Git and the workflow fails instead of overwriting anything.
+# ---------------------------------------------------------------------------
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (MAJOR.MINOR.PATCH, e.g. 1.0.1)"
+        required: true
+        type: string
+      release_notes:
+        description: "Optional release notes / changelog"
+        required: false
+        type: string
+      dry_run:
+        description: "Validate and prepare everything but do NOT push to production"
+        required: false
+        type: boolean
+        default: false
+  # Later trigger from GitHub Releases: publishing a release named v1.0.1
+  # will run the same pipeline using the tag as the version.
+  release:
+    types: [published]
+
+# Least-privilege default token. Cross-repository writes use PROD_DEPLOY_TOKEN.
+permissions:
+  contents: read
+
+# Never run two production-mutating workflows at once (shared with rollback).
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+env:
+  PROD_REPO: Soujash-123/ai-mastering
+  SOURCE_BRANCH: main
+
+jobs:
+  # =========================================================================
+  # 1. PRE-FLIGHT: version + branch + secret gates (fast, fail early)
+  # =========================================================================
+  preflight:
+    name: Pre-flight checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.versions.outputs.version }}
+      tag: ${{ steps.versions.outputs.tag }}
+      current: ${{ steps.versions.outputs.current }}
+    steps:
+      - name: Checking repository...
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify required secrets are present
+        env:
+          PROD_TOKEN: ${{ secrets.PROD_DEPLOY_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          echo "Checking required GitHub Secrets..."
+          if [ -z "${PROD_TOKEN}" ]; then
+            echo "::error::Missing required secret: PROD_DEPLOY_TOKEN"
+            exit 1
+          fi
+          echo "All required secrets are present."
+
+      - name: Checking branch...
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          set -Eeuo pipefail
+          if [ "${REF}" != "refs/heads/${SOURCE_BRANCH}" ]; then
+            echo "::error::Releases must be triggered from '${SOURCE_BRANCH}'. Current ref: ${REF}"
+            exit 1
+          fi
+          echo "Release is running from ${SOURCE_BRANCH}."
+
+      - name: Verify working tree is clean
+        run: |
+          set -Eeuo pipefail
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::Working tree is not clean."
+            git status --porcelain
+            exit 1
+          fi
+          echo "Working tree is clean."
+
+      - name: Resolve and validate version
+        id: versions
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          PROD_TOKEN: ${{ secrets.PROD_DEPLOY_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+
+          if [ "${EVENT}" = "release" ]; then
+            RAW="${RELEASE_TAG#v}"
+          else
+            RAW="${INPUT_VERSION}"
+          fi
+          RAW="$(printf '%s' "${RAW}" | tr -d '[:space:]')"
+          echo "Requested version: ${RAW}"
+
+          # Validate semantic version format.
+          if ! printf '%s' "${RAW}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid version '${RAW}'. Expected MAJOR.MINOR.PATCH (e.g. 1.0.1)."
+            exit 1
+          fi
+
+          # Discover the current production version from prod refs (no clone).
+          REMOTE="https://x-access-token:${PROD_TOKEN}@github.com/${PROD_REPO}.git"
+          CUR="$(git ls-remote --tags --heads "${REMOTE}" 'v[0-9]*' 2>/dev/null \
+            | sed -E 's#.*refs/(heads|tags)/##' \
+            | sed 's/\^{}//' \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sed 's/^v//' \
+            | sort -V | tail -n1 || true)"
+          CUR="${CUR:-0.0.0}"
+          echo "Current production version: v${CUR}"
+
+          if [ "${RAW}" = "${CUR}" ]; then
+            echo "::error::Version v${RAW} already exists in production."
+            exit 1
+          fi
+
+          HIGHEST="$(printf '%s\n%s\n' "${RAW}" "${CUR}" | sort -V | tail -n1)"
+          if [ "${HIGHEST}" != "${RAW}" ]; then
+            echo "::error::Version v${RAW} is not newer than current production v${CUR}."
+            exit 1
+          fi
+
+          echo "Version v${RAW} is valid and newer than v${CUR}."
+          {
+            echo "version=${RAW}"
+            echo "tag=v${RAW}"
+            echo "current=v${CUR}"
+          } >> "${GITHUB_OUTPUT}"
+
+  # =========================================================================
+  # 2. BACKEND VALIDATION: install, type/syntax check, unit tests
+  # =========================================================================
+  backend:
+    name: Backend validation
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checking repository...
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          set -Eeuo pipefail
+          echo "Installing backend dependencies..."
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Type / syntax check
+        run: |
+          set -Eeuo pipefail
+          echo "Running type/syntax checks..."
+          python -m compileall backend/analysis backend/api backend/auth \
+            backend/exports backend/llm backend/mastering backend/models \
+            backend/scripts backend/services backend/utils backend/workers
+
+      - name: Running tests...
+        working-directory: backend
+        run: |
+          set -Eeuo pipefail
+          echo "Running unit tests..."
+          python -m pytest -q
+
+  # =========================================================================
+  # 3. FRONTEND VALIDATION: install, lint, type check, build
+  # =========================================================================
+  frontend:
+    name: Frontend validation
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checking repository...
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: |
+          set -Eeuo pipefail
+          echo "Installing frontend dependencies..."
+          npm ci
+
+      - name: Lint
+        working-directory: frontend
+        run: |
+          set -Eeuo pipefail
+          echo "Running lint..."
+          npm run lint
+
+      - name: Type check
+        working-directory: frontend
+        run: |
+          set -Eeuo pipefail
+          echo "Running type check..."
+          npx tsc --noEmit
+
+      - name: Building application...
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_BASE: http://localhost:8000
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: |
+          set -Eeuo pipefail
+          echo "Building frontend..."
+          npm run build
+
+  # =========================================================================
+  # 4. DOCKER VALIDATION: compose config + image builds
+  # =========================================================================
+  docker:
+    name: Docker validation
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checking repository...
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Validating Docker Compose configuration...
+        run: |
+          set -Eeuo pipefail
+          echo "Validating base compose file..."
+          docker compose -f docker-compose.yml config -q
+          echo "Validating production compose overlay..."
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
+          echo "Compose configuration is valid."
+
+      - name: Building Docker images...
+        run: |
+          set -Eeuo pipefail
+          echo "Building backend image..."
+          docker build -f backend/Dockerfile backend
+          echo "Building frontend runner image..."
+          docker build -f frontend/Dockerfile --target runner \
+            --build-arg NEXT_PUBLIC_API_BASE=http://localhost:8000 frontend
+          echo "Building frontend nginx image..."
+          docker build -f frontend/Dockerfile --target nginx frontend
+          echo "All Docker images built successfully."
+
+  # =========================================================================
+  # 5. RELEASE: backup + release branch + safe (non-force) push to production
+  #    Gated behind the 'production' environment (manual approval).
+  # =========================================================================
+  release:
+    name: Publish release to production
+    needs: [preflight, backend, frontend, docker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      NEW_TAG: ${{ needs.preflight.outputs.tag }}
+      CUR_TAG: ${{ needs.preflight.outputs.current }}
+      DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+      RELEASE_NOTES: ${{ github.event.inputs.release_notes }}
+      SYNC_WORKFLOWS: "false"
+    steps:
+      - name: Checkout source (dev) repository
+        uses: actions/checkout@v4
+        with:
+          path: dev
+          fetch-depth: 0
+
+      - name: Creating production backup...
+        env:
+          PROD_TOKEN: ${{ secrets.PROD_DEPLOY_TOKEN }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -Eeuo pipefail
+
+          echo "Cloning production repository..."
+          git clone "https://x-access-token:${PROD_TOKEN}@github.com/${PROD_REPO}.git" prod
+          cd prod
+          git config user.name  "kord-release-bot"
+          git config user.email "release-bot@users.noreply.github.com"
+          git checkout "${SOURCE_BRANCH}"
+          git fetch origin --prune
+
+          # Guard: local main must match remote main (no unexpected divergence).
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse "origin/${SOURCE_BRANCH}")" ]; then
+            echo "::error::Production ${SOURCE_BRANCH} has diverged unexpectedly. Aborting."
+            exit 1
+          fi
+
+          # (a) Durable snapshot of the current production version (kept forever).
+          if [ "${CUR_TAG}" != "v0.0.0" ]; then
+            if git ls-remote --exit-code --heads origin "${CUR_TAG}" >/dev/null 2>&1; then
+              echo "Version branch ${CUR_TAG} already exists — preserving it."
+            else
+              echo "Creating durable version branch ${CUR_TAG} at current production HEAD."
+              git branch "${CUR_TAG}" "origin/${SOURCE_BRANCH}"
+              if [ "${DRY_RUN}" != "true" ]; then
+                git push origin "refs/heads/${CUR_TAG}:refs/heads/${CUR_TAG}"
+              fi
+            fi
+          fi
+
+          # (b) Fresh pre-release backup branch — created on EVERY release.
+          BACKUP="backup/pre-${NEW_TAG}-run${RUN_NUMBER}"
+          echo "Creating pre-release backup branch ${BACKUP}."
+          git branch "${BACKUP}" "origin/${SOURCE_BRANCH}"
+          if [ "${DRY_RUN}" != "true" ]; then
+            git push origin "refs/heads/${BACKUP}:refs/heads/${BACKUP}"
+          fi
+          echo "BACKUP_BRANCH=${BACKUP}" >> "${GITHUB_ENV}"
+
+      - name: Creating release...
+        run: |
+          set -Eeuo pipefail
+          cd prod
+
+          echo "Creating release branch ${NEW_TAG}..."
+          git checkout -b "${NEW_TAG}" "origin/${SOURCE_BRANCH}"
+
+          echo "Synchronising release content into production working tree..."
+          EXCLUDES=(--exclude='.git/')
+          if [ "${SYNC_WORKFLOWS}" != "true" ]; then
+            EXCLUDES+=(--exclude='.github/')
+          fi
+          EXCLUDES+=(
+            --exclude='node_modules/'
+            --exclude='.next/'
+            --exclude='backend/myenv/'
+            --exclude='backend/.venv/'
+            --exclude='backend/data/'
+            --exclude='**/__pycache__/'
+          )
+          rsync -a --delete "${EXCLUDES[@]}" "${GITHUB_WORKSPACE}/dev/" ./
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "::warning::No content differences detected between source and production."
+          else
+            git commit -m "Release ${NEW_TAG}" -m "${RELEASE_NOTES:-Automated release ${NEW_TAG}}"
+          fi
+
+          echo "Fast-forwarding ${SOURCE_BRANCH} to the release commit..."
+          git checkout "${SOURCE_BRANCH}"
+          git merge --ff-only "${NEW_TAG}"
+
+          echo "Creating annotated tag ${NEW_TAG}..."
+          git tag -a "${NEW_TAG}" -m "Release ${NEW_TAG}"
+
+      - name: Updating production...
+        run: |
+          set -Eeuo pipefail
+          cd prod
+
+          if [ "${DRY_RUN}" = "true" ]; then
+            echo "DRY RUN — the following refs would be pushed (no --force):"
+            echo "  refs/heads/${SOURCE_BRANCH}"
+            echo "  refs/heads/${NEW_TAG}"
+            echo "  refs/tags/${NEW_TAG}"
+            exit 0
+          fi
+
+          echo "Pushing release to production (plain, non-force pushes)..."
+          # Re-check divergence immediately before pushing.
+          git fetch origin "${SOURCE_BRANCH}"
+          git push origin "refs/heads/${NEW_TAG}:refs/heads/${NEW_TAG}"
+          git push origin "refs/heads/${SOURCE_BRANCH}:refs/heads/${SOURCE_BRANCH}"
+          git push origin "refs/tags/${NEW_TAG}"
+
+      - name: Verifying deployment...
+        if: env.DRY_RUN != 'true'
+        env:
+          PROD_TOKEN: ${{ secrets.PROD_DEPLOY_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          REMOTE="https://x-access-token:${PROD_TOKEN}@github.com/${PROD_REPO}.git"
+          echo "Confirming refs exist on production..."
+          git ls-remote --exit-code --heads "${REMOTE}" "${NEW_TAG}"
+          git ls-remote --exit-code --tags  "${REMOTE}" "${NEW_TAG}"
+          echo "Release ${NEW_TAG} verified on production."
+
+      - name: Release completed successfully.
+        run: |
+          echo "Release completed successfully."
+          echo "  Version        : ${NEW_TAG}"
+          echo "  Previous        : ${CUR_TAG}"
+          echo "  Backup branch  : ${BACKUP_BRANCH:-<none>}"
+          echo "  Dry run        : ${DRY_RUN}"

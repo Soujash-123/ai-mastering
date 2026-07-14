@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from auth.database import get_db
 from auth.dependencies import get_current_user
 from auth.models import User
+from auth.provisioned_users import is_provisioned_email
 from auth.schemas import LoginRequest, RegisterRequest, TokenResponse, UserResponse, UserRole
 from auth.security import create_access_token, hash_password, verify_password
 

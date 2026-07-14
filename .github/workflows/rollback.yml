@@ -1,0 +1,158 @@
+name: Rollback Production
+
+# ---------------------------------------------------------------------------
+# Safely restore the production repository (Soujash-123/ai-mastering) to a
+# previously released version branch (e.g. v1.0.0).
+#
+# Rollback is performed as a NORMAL forward commit on production 'main' whose
+# tree matches the chosen snapshot. This preserves full history and audit
+# trail — no --force, no history rewrite, no destructive synchronisation.
+# ---------------------------------------------------------------------------
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_branch:
+        description: "Version branch to restore (e.g. v1.0.0)"
+        required: true
+        type: string
+      confirm:
+        description: "Type the exact version branch again to confirm (e.g. v1.0.0)"
+        required: true
+        type: string
+      reason:
+        description: "Reason for the rollback (recorded in the commit message)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+# Shared with the release workflow — production is only ever mutated serially.
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+env:
+  PROD_REPO: Soujash-123/ai-mastering
+  SOURCE_BRANCH: main
+
+jobs:
+  rollback:
+    name: Rollback production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      VERSION_BRANCH: ${{ github.event.inputs.version_branch }}
+      CONFIRM: ${{ github.event.inputs.confirm }}
+      REASON: ${{ github.event.inputs.reason }}
+    steps:
+      - name: Require confirmation
+        run: |
+          set -Eeuo pipefail
+          echo "Requested rollback target: ${VERSION_BRANCH}"
+          if [ "${VERSION_BRANCH}" != "${CONFIRM}" ]; then
+            echo "::error::Confirmation '${CONFIRM}' does not match target '${VERSION_BRANCH}'. Aborting."
+            exit 1
+          fi
+          if ! printf '%s' "${VERSION_BRANCH}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid version branch name '${VERSION_BRANCH}'. Expected vMAJOR.MINOR.PATCH."
+            exit 1
+          fi
+          echo "Confirmation accepted."
+
+      - name: Verify required secrets are present
+        env:
+          PROD_TOKEN: ${{ secrets.PROD_DEPLOY_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          if [ -z "${PROD_TOKEN}" ]; then
+            echo "::error::Missing required secret: PROD_DEPLOY_TOKEN"
+            exit 1
+          fi
+          echo "Required secrets present."
+
+      - name: Cloning production repository...
+        env:
+          PROD_TOKEN: ${{ secrets.PROD_DEPLOY_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          git clone "https://x-access-token:${PROD_TOKEN}@github.com/${PROD_REPO}.git" prod
+          cd prod
+          git config user.name  "kord-release-bot"
+          git config user.email "release-bot@users.noreply.github.com"
+          git fetch origin --prune --tags
+
+      - name: Validating version branch exists...
+        run: |
+          set -Eeuo pipefail
+          cd prod
+          if git ls-remote --exit-code --heads origin "${VERSION_BRANCH}" >/dev/null 2>&1; then
+            echo "Found version branch ${VERSION_BRANCH}."
+            echo "RESTORE_REF=origin/${VERSION_BRANCH}" >> "${GITHUB_ENV}"
+          elif git ls-remote --exit-code --tags origin "${VERSION_BRANCH}" >/dev/null 2>&1; then
+            echo "Found version tag ${VERSION_BRANCH}."
+            echo "RESTORE_REF=refs/tags/${VERSION_BRANCH}" >> "${GITHUB_ENV}"
+          else
+            echo "::error::No branch or tag named '${VERSION_BRANCH}' exists in production."
+            exit 1
+          fi
+
+      - name: Creating production backup...
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -Eeuo pipefail
+          cd prod
+          git checkout "${SOURCE_BRANCH}"
+          BACKUP="backup/pre-rollback-${VERSION_BRANCH}-run${RUN_NUMBER}"
+          echo "Creating pre-rollback backup branch ${BACKUP}..."
+          git branch "${BACKUP}" "origin/${SOURCE_BRANCH}"
+          git push origin "refs/heads/${BACKUP}:refs/heads/${BACKUP}"
+          echo "BACKUP_BRANCH=${BACKUP}" >> "${GITHUB_ENV}"
+
+      - name: Restoring production...
+        run: |
+          set -Eeuo pipefail
+          cd prod
+          git checkout "${SOURCE_BRANCH}"
+
+          echo "Restoring working tree to ${RESTORE_REF}..."
+          # Set index + working tree to the snapshot's tree, but keep 'main' HEAD
+          # as parent so history is preserved (a normal forward commit).
+          git read-tree -u --reset "${RESTORE_REF}"
+
+          if git diff --cached --quiet; then
+            echo "::warning::Production is already identical to ${VERSION_BRANCH}. Nothing to roll back."
+            exit 0
+          fi
+
+          git commit -m "Rollback production to ${VERSION_BRANCH}" \
+                     -m "Reason: ${REASON:-manual rollback via GitHub Actions}"
+
+          echo "Pushing rollback commit (plain, non-force push)..."
+          git fetch origin "${SOURCE_BRANCH}"
+          git push origin "refs/heads/${SOURCE_BRANCH}:refs/heads/${SOURCE_BRANCH}"
+
+      - name: Verifying rollback...
+        env:
+          PROD_TOKEN: ${{ secrets.PROD_DEPLOY_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          cd prod
+          git fetch origin "${SOURCE_BRANCH}"
+          MAIN_TREE="$(git rev-parse "origin/${SOURCE_BRANCH}^{tree}")"
+          SNAP_TREE="$(git rev-parse "${RESTORE_REF}^{tree}")"
+          if [ "${MAIN_TREE}" != "${SNAP_TREE}" ]; then
+            echo "::error::Post-rollback tree does not match ${VERSION_BRANCH}."
+            exit 1
+          fi
+          echo "Rollback verified: production now matches ${VERSION_BRANCH}."
+
+      - name: Rollback completed successfully.
+        run: |
+          echo "Rollback completed successfully."
+          echo "  Restored to    : ${VERSION_BRANCH}"
+          echo "  Backup branch  : ${BACKUP_BRANCH:-<none>}"
+          echo "  Reason         : ${REASON:-<none>}"

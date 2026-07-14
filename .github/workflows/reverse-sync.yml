@@ -1,0 +1,269 @@
+name: Reverse Production Sync
+
+# ---------------------------------------------------------------------------
+# Reverse of the Release workflow: brings changes made directly on the
+# PRODUCTION repo (emergency hotfixes) back into DEVELOPMENT via a Pull Request.
+#
+# Development (source of truth) : Syntalix-AI/kord-studio   <- PR opened here
+# Production                    : Soujash-123/ai-mastering  <- changes come from here
+#
+# Hard guarantees:
+#   * The Development 'main' branch is NEVER written to directly. Changes are
+#     delivered only through a reviewable Pull Request.
+#   * No history rewriting: no --force, no --mirror, no reset --hard on shared
+#     branches. Only plain pushes of a NEW feature branch.
+#   * The workflow proceeds ONLY when Production is strictly ahead of
+#     Development (Development has zero unique commits). Any divergence,
+#     unrelated history, or "Development ahead" situation stops the run and
+#     creates nothing.
+# ---------------------------------------------------------------------------
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version being synced back (MAJOR.MINOR.PATCH, e.g. 1.0.1)"
+        required: true
+        type: string
+      reason:
+        description: "Why is this reverse sync needed? (recorded in the PR)"
+        required: false
+        type: string
+
+# Least privilege: write access is limited to branches + pull requests in THIS
+# (development) repository. Read access to production uses PROD_DEPLOY_TOKEN.
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: reverse-production-sync
+  cancel-in-progress: false
+
+env:
+  DEV_REPO: Syntalix-AI/kord-studio
+  PROD_REPO: Soujash-123/ai-mastering
+  DEV_BRANCH: main
+  PROD_BRANCH: main
+
+jobs:
+  reverse-sync:
+    name: Reverse sync production into development
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VERSION: ${{ github.event.inputs.version }}
+      REASON: ${{ github.event.inputs.reason }}
+      DEV_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PROD_TOKEN: ${{ secrets.PROD_DEPLOY_TOKEN }}
+    steps:
+      # -------------------------------------------------------------------
+      # 1. Validate the version input up front.
+      # -------------------------------------------------------------------
+      - name: Validate version input
+        run: |
+          set -Eeuo pipefail
+          echo "Validating version input..."
+          RAW="$(printf '%s' "${VERSION}" | tr -d '[:space:]')"
+          if ! printf '%s' "${RAW}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid version '${VERSION}'. Expected MAJOR.MINOR.PATCH (e.g. 1.0.1)."
+            exit 1
+          fi
+          echo "VERSION=${RAW}" >> "${GITHUB_ENV}"
+          echo "SYNC_BRANCH=reverse-update-v${RAW}" >> "${GITHUB_ENV}"
+          echo "Version v${RAW} is valid. Target branch: reverse-update-v${RAW}"
+
+      # -------------------------------------------------------------------
+      # 2. Verify required secrets exist.
+      # -------------------------------------------------------------------
+      - name: Verify required secrets
+        run: |
+          set -Eeuo pipefail
+          echo "Checking required GitHub Secrets..."
+          if [ -z "${PROD_TOKEN}" ]; then
+            echo "::error::Missing required secret: PROD_DEPLOY_TOKEN"
+            exit 1
+          fi
+          if [ -z "${DEV_TOKEN}" ]; then
+            echo "::error::GITHUB_TOKEN is unavailable."
+            exit 1
+          fi
+          echo "All required secrets are present."
+
+      # -------------------------------------------------------------------
+      # 3. Fetch BOTH repositories into one neutral working repo.
+      #    This also proves: authentication works, both repos are reachable,
+      #    and the default branches exist.
+      # -------------------------------------------------------------------
+      - name: Checking repositories...
+        run: |
+          set -Eeuo pipefail
+          git init -q sync
+          cd sync
+          git config user.name  "kord-reverse-sync-bot"
+          git config user.email "reverse-sync-bot@users.noreply.github.com"
+
+          echo "Adding remotes..."
+          git remote add dev  "https://x-access-token:${DEV_TOKEN}@github.com/${DEV_REPO}.git"
+          git remote add prod "https://x-access-token:${PROD_TOKEN}@github.com/${PROD_REPO}.git"
+
+          echo "Verifying default branches are reachable..."
+          git ls-remote --exit-code --heads dev  "${DEV_BRANCH}"  >/dev/null \
+            || { echo "::error::Cannot reach ${DEV_REPO} branch ${DEV_BRANCH} (auth or access failure)."; exit 1; }
+          git ls-remote --exit-code --heads prod "${PROD_BRANCH}" >/dev/null \
+            || { echo "::error::Cannot reach ${PROD_REPO} branch ${PROD_BRANCH} (auth or access failure)."; exit 1; }
+
+          echo "Fetching full history from both repositories..."
+          git fetch --no-tags dev  "${DEV_BRANCH}"
+          git fetch --no-tags prod "${PROD_BRANCH}"
+          echo "Both repositories reachable and fetched."
+
+      # -------------------------------------------------------------------
+      # 4. CORE SAFETY GATE — comparing commit histories.
+      #    Decide whether Production is STRICTLY ahead of Development.
+      # -------------------------------------------------------------------
+      - name: Comparing commit histories...
+        working-directory: sync
+        run: |
+          set -Eeuo pipefail
+
+          DEV_SHA="$(git rev-parse "dev/${DEV_BRANCH}")"
+          PROD_SHA="$(git rev-parse "prod/${PROD_BRANCH}")"
+          echo "Development ${DEV_REPO}@${DEV_BRANCH}: ${DEV_SHA}"
+          echo "Production  ${PROD_REPO}@${PROD_BRANCH}: ${PROD_SHA}"
+
+          # Must share ancestry, otherwise the comparison is ambiguous.
+          echo "Checking for a common ancestor..."
+          if ! git merge-base "dev/${DEV_BRANCH}" "prod/${PROD_BRANCH}" >/dev/null 2>&1; then
+            echo "::error::Unrelated histories — repositories do not share a common ancestor. Refusing to sync."
+            exit 1
+          fi
+
+          # left  = commits present in Development but NOT in Production
+          # right = commits present in Production  but NOT in Development
+          set -- $(git rev-list --left-right --count "dev/${DEV_BRANCH}...prod/${PROD_BRANCH}")
+          DEV_ONLY="$1"
+          PROD_ONLY="$2"
+          echo "Checking for Development-only commits... found ${DEV_ONLY}"
+          echo "Verifying Production is ahead... Production-only commits: ${PROD_ONLY}"
+
+          if [ "${DEV_ONLY}" -gt 0 ]; then
+            echo "::error::Development has ${DEV_ONLY} commit(s) not in Production."
+            echo "::error::This is divergence (or Development is ahead). Refusing to create a branch or PR."
+            exit 1
+          fi
+
+          if [ "${PROD_ONLY}" -eq 0 ]; then
+            echo "Production is not ahead of Development — already in sync. Nothing to do."
+            echo "NOTHING_TO_DO=true" >> "${GITHUB_ENV}"
+            exit 0
+          fi
+
+          # Confirm Development is an ancestor of Production (strictly ahead == clean fast-forward).
+          if ! git merge-base --is-ancestor "dev/${DEV_BRANCH}" "prod/${PROD_BRANCH}"; then
+            echo "::error::Development is not an ancestor of Production. Ambiguous relationship — refusing to sync."
+            exit 1
+          fi
+
+          echo "No divergence detected — Production is strictly ahead by ${PROD_ONLY} commit(s)."
+          {
+            echo "DEV_SHA=${DEV_SHA}"
+            echo "PROD_SHA=${PROD_SHA}"
+            echo "COMMIT_COUNT=${PROD_ONLY}"
+          } >> "${GITHUB_ENV}"
+
+      # -------------------------------------------------------------------
+      # 5. Ensure the target branch does not already exist (avoid clobbering
+      #    an open reverse-sync PR).
+      # -------------------------------------------------------------------
+      - name: Check target branch availability
+        if: env.NOTHING_TO_DO != 'true'
+        working-directory: sync
+        run: |
+          set -Eeuo pipefail
+          if git ls-remote --exit-code --heads dev "${SYNC_BRANCH}" >/dev/null 2>&1; then
+            echo "::error::Branch ${SYNC_BRANCH} already exists in ${DEV_REPO}. Resolve or delete it first."
+            exit 1
+          fi
+          echo "Branch ${SYNC_BRANCH} is available."
+
+      # -------------------------------------------------------------------
+      # 6. Create the reverse-update branch and push it to Development.
+      #    This is a plain (non-force) push of a NEW branch whose commits
+      #    build directly on top of Development's history.
+      # -------------------------------------------------------------------
+      - name: Creating reverse-update branch...
+        if: env.NOTHING_TO_DO != 'true'
+        working-directory: sync
+        run: |
+          set -Eeuo pipefail
+          echo "Creating branch ${SYNC_BRANCH} from Production HEAD..."
+          git branch "${SYNC_BRANCH}" "prod/${PROD_BRANCH}"
+          echo "Synchronizing commits into ${DEV_REPO} (non-force push)..."
+          git push dev "refs/heads/${SYNC_BRANCH}:refs/heads/${SYNC_BRANCH}"
+          echo "Branch ${SYNC_BRANCH} pushed to Development."
+
+      # -------------------------------------------------------------------
+      # 7. Build the PR body (files changed, SHAs, counts, reason, timestamp).
+      # -------------------------------------------------------------------
+      - name: Build pull request body
+        if: env.NOTHING_TO_DO != 'true'
+        working-directory: sync
+        run: |
+          set -Eeuo pipefail
+          TS="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          FILES="$(git diff --name-status "dev/${DEV_BRANCH}..prod/${PROD_BRANCH}" | head -n 200)"
+          {
+            echo "## Reverse Sync: Production v${VERSION}"
+            echo ""
+            echo "Emergency/production changes are being synced back into development for review."
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Production repository | https://github.com/${PROD_REPO} |"
+            echo "| Development repository | https://github.com/${DEV_REPO} |"
+            echo "| Production commit SHA | \`${PROD_SHA}\` |"
+            echo "| Development commit SHA | \`${DEV_SHA}\` |"
+            echo "| Commits synchronized | ${COMMIT_COUNT} |"
+            echo "| Executed at (UTC) | ${TS} |"
+            echo ""
+            echo "**Reason:** ${REASON:-Not provided}"
+            echo ""
+            echo "### Changed files"
+            echo ""
+            echo '```'
+            echo "${FILES:-No file-level differences detected.}"
+            echo '```'
+            echo ""
+            echo "> Generated by the Reverse Production Sync workflow. Review and merge — do not force-push."
+          } > "${GITHUB_WORKSPACE}/pr_body.md"
+          echo "PR body prepared."
+
+      # -------------------------------------------------------------------
+      # 8. Create the Pull Request in the Development repository.
+      # -------------------------------------------------------------------
+      - name: Creating Pull Request...
+        if: env.NOTHING_TO_DO != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          PR_URL="$(gh api "repos/${DEV_REPO}/pulls" \
+            -f title="Reverse Sync: Production v${VERSION}" \
+            -f head="${SYNC_BRANCH}" \
+            -f base="${DEV_BRANCH}" \
+            -F body=@"${GITHUB_WORKSPACE}/pr_body.md" \
+            --jq '.html_url')"
+          echo "Pull Request created: ${PR_URL}"
+          {
+            echo "### Reverse synchronization completed successfully."
+            echo ""
+            echo "- Version: v${VERSION}"
+            echo "- Branch: \`${SYNC_BRANCH}\` -> \`${DEV_BRANCH}\`"
+            echo "- Commits synced: ${COMMIT_COUNT}"
+            echo "- Pull Request: ${PR_URL}"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Reverse synchronization completed successfully.
+        if: env.NOTHING_TO_DO != 'true'
+        run: echo "Reverse synchronization completed successfully."
