@@ -54,7 +54,7 @@ jobs:
     env:
       VERSION: ${{ github.event.inputs.version }}
       REASON: ${{ github.event.inputs.reason }}
-      DEV_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      DEV_TOKEN: ${{ secrets.DEV_DEPLOY_TOKEN }}
       PROD_TOKEN: ${{ secrets.PROD_DEPLOY_TOKEN }}
     steps:
       # -------------------------------------------------------------------
@@ -85,7 +85,7 @@ jobs:
             exit 1
           fi
           if [ -z "${DEV_TOKEN}" ]; then
-            echo "::error::GITHUB_TOKEN is unavailable."
+            echo "::error::DEV_DEPLOY_TOKEN is unavailable."
             exit 1
           fi
           echo "All required secrets are present."
@@ -245,7 +245,7 @@ jobs:
       - name: Creating Pull Request...
         if: env.NOTHING_TO_DO != 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.DEV_DEPLOY_TOKEN }}
         run: |
           set -Eeuo pipefail
           PR_URL="$(gh api "repos/${DEV_REPO}/pulls" \
