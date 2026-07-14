@@ -55,7 +55,7 @@ jobs:
       VERSION: ${{ github.event.inputs.version }}
       REASON: ${{ github.event.inputs.reason }}
       DEV_TOKEN: ${{ secrets.DEV_DEPLOY_TOKEN }}
-      PROD_TOKEN: ${{ secrets.PROD_DEPLOY_TOKEN }}
+      PROD_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       # -------------------------------------------------------------------
       # 1. Validate the version input up front.
@@ -80,12 +80,8 @@ jobs:
         run: |
           set -Eeuo pipefail
           echo "Checking required GitHub Secrets..."
-          if [ -z "${PROD_TOKEN}" ]; then
-            echo "::error::Missing required secret: PROD_DEPLOY_TOKEN"
-            exit 1
-          fi
           if [ -z "${DEV_TOKEN}" ]; then
-            echo "::error::DEV_DEPLOY_TOKEN is unavailable."
+            echo "::error::Missing required secret: DEV_DEPLOY_TOKEN"
             exit 1
           fi
           echo "All required secrets are present."
