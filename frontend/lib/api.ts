@@ -66,6 +66,7 @@ export type JobResult = {
   exports: { profile: string; format: string; path: string; download_url: string }[];
   streaming_notes: string[];
   memory_profile?: MemoryStepReport[];
+  dsp_params?: Record<string, number> | null;
 };
 
 export async function createJob(file: File, targetPlatform: string, userIntent: string, ephemeral = true) {
@@ -95,6 +96,42 @@ export async function fetchResult(jobId: string) {
     headers: authHeaders(),
   });
   if (res.status === 409) return null;
+  if (!res.ok) throw new Error(await parseApiError(res));
+  return (await res.json()) as JobResult;
+}
+
+export type PreviewResponse = {
+  url: string;
+  params: Record<string, number>;
+  lufs: number | null;
+  peak_db: number | null;
+  duration_sec: number;
+  is_full: boolean;
+  segment_start_sec: number | null;
+};
+
+export type PreviewRequest = {
+  overrides: Record<string, number>;
+  segment_sec?: number;
+  window_start_sec?: number | null;
+};
+
+export async function previewJob(jobId: string, req: PreviewRequest) {
+  const res = await fetch(apiUrl(`/api/jobs/${jobId}/preview`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res));
+  return (await res.json()) as PreviewResponse;
+}
+
+export async function finalizeJob(jobId: string, overrides: Record<string, number>) {
+  const res = await fetch(apiUrl(`/api/jobs/${jobId}/finalize`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ overrides }),
+  });
   if (!res.ok) throw new Error(await parseApiError(res));
   return (await res.json()) as JobResult;
 }

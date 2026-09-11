@@ -15,7 +15,9 @@ from datetime import date, datetime
 
 _LOCAL_CORS_ORIGINS = (
     "http://localhost",
-"http://127.0.0.1",
+    "http://localhost:3000",
+    "http://127.0.0.1",
+    "http://127.0.0.1:3000",
     "http://kordstudio.syntalixconsultancy.com",
     "https://kordstudio.syntalixconsultancy.com",
 )
@@ -48,8 +50,9 @@ def _current_public_ip() -> Optional[str]:
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    openai_api_key: Optional[str] = None
-    openai_mastering_model: str = "gpt-5"
+    groq_api_key: Optional[str] = None
+    gpt_oss_mastering_model: str = "openai/gpt-oss-20b"
+    mastering_llm_retries: int = 2
     ai_mastering_data_dir: Optional[Path] = None
 
     database_url: str = "sqlite:///./data/kord_auth.db"

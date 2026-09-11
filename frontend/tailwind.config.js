@@ -3,6 +3,10 @@ module.exports = {
   content: ["./app/**/*.{js,ts,jsx,tsx}", "./components/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["var(--font-sora)", "system-ui", "sans-serif"],
+        outfit: ["var(--font-outfit)", "system-ui", "sans-serif"],
+      },
       colors: {
         ink: { 950: "#07090f", 900: "#0b0f1a", 800: "#111828", 700: "#1a2235" },
         mist: { 200: "#c9d1e3", 100: "#e6eaf5", 50: "#f6f7fb" },

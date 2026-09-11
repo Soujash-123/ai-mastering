@@ -56,3 +56,26 @@ class JobResultResponse(BaseModel):
     exports: list[ExportArtifact] = Field(default_factory=list)
     streaming_notes: list[str] = Field(default_factory=list)
     memory_profile: list[MemoryStepReport] = Field(default_factory=list)
+    dsp_params: Optional[dict[str, float]] = None
+
+
+class PreviewRequest(BaseModel):
+    overrides: dict[str, float] = Field(default_factory=dict)
+    # Length of the preview window in seconds. 0 renders the full track.
+    segment_sec: float = Field(default=30.0, ge=0.0, le=120.0)
+    # Optional window center (seconds). When omitted, the loudest section is used.
+    window_start_sec: Optional[float] = Field(default=None, ge=0.0)
+
+
+class PreviewResponse(BaseModel):
+    url: str
+    params: dict[str, float]
+    lufs: Optional[float] = None
+    peak_db: Optional[float] = None
+    duration_sec: float
+    is_full: bool
+    segment_start_sec: Optional[float] = None
+
+
+class FinalizeRequest(BaseModel):
+    overrides: dict[str, float] = Field(default_factory=dict)

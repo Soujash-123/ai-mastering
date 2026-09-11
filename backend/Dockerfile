@@ -7,8 +7,8 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     DEBIAN_FRONTEND=noninteractive \
-    OPENAI_API_KEY="" \
-    OPENAI_MASTERING_MODEL=gpt-5.1 \
+    GROQ_API_KEY="" \
+    GPT_OSS_MASTERING_MODEL="openai/gpt-oss-20b" \
     AI_MASTERING_DATA_DIR=./data
 
 RUN apt-get update && apt-get install -y --no-install-recommends \

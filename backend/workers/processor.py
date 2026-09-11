@@ -12,6 +12,7 @@ from api.schemas import JobStatus
 from exports.pcm_export import export_all_artifacts
 from llm.intent import generate_mastering_plan
 from mastering.chain import master_file
+from mastering.preview import save_render_context
 from mastering.safety import intent_to_safe_params
 from services.job_store import job_store
 from utils.config import get_settings
@@ -83,6 +84,8 @@ async def process_job(job_id: str, target_platform: str, user_intent: str) -> No
         with memory_step("mastering"):
             await asyncio.to_thread(master_file, str(rec.input_path), str(master_path), params, analysis_dsp)
         logger.info("Job %s: master rendering completed", job_id)
+        save_render_context(rec.input_path.parent, params, analysis_dsp, target_platform)
+        logger.info("Job %s: render context persisted for DSP editing", job_id)
 
         await bump(JobStatus.exporting, 0.8, "Exporting formats & streaming simulations…")
         exports_dir = job_dir / "exports"

@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KORD — Style 2: Warm Analog Studio</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f0c08;
+    --surface: #161210;
+    --border: rgba(200,160,100,0.12);
+    --amber: #f0b429;
+    --amber-dim: rgba(240,180,41,0.6);
+    --copper: #d97706;
+    --warm-white: #f5efe6;
+    --text-dim: rgba(245,239,230,0.45);
+  }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--warm-white);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Warm ambient gradient */
+  .bg-warm {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  }
+  .bg-warm::before {
+    content: ''; position: absolute; top: -20%; left: 30%; width: 50%; height: 50%;
+    background: radial-gradient(ellipse, rgba(240,180,41,0.07) 0%, transparent 70%);
+    animation: warm-float 10s ease-in-out infinite alternate;
+  }
+  .bg-warm::after {
+    content: ''; position: absolute; bottom: -10%; right: 20%; width: 40%; height: 40%;
+    background: radial-gradient(ellipse, rgba(217,119,6,0.05) 0%, transparent 70%);
+    animation: warm-float 14s ease-in-out infinite alternate-reverse;
+  }
+  @keyframes warm-float {
+    0% { transform: translate(0,0); }
+    100% { transform: translate(20px,-20px); }
+  }
+
+  /* Grain texture overlay */
+  .grain {
+    position: fixed; inset: 0; pointer-events: none; z-index: 1;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 128px;
+  }
+
+  /* Nav */
+  nav {
+    position: sticky; top: 0; z-index: 20;
+    border-bottom: 1px solid var(--border);
+    background: rgba(15,12,8,0.9);
+    backdrop-filter: blur(16px);
+  }
+  .nav-inner {
+    max-width: 1100px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 32px;
+  }
+  .logo {
+    display: flex; align-items: center; gap: 12px;
+    text-decoration: none; color: var(--warm-white);
+  }
+  .logo-icon {
+    width: 36px; height: 36px; border-radius: 50%;
+    border: 1.5px solid var(--amber-dim);
+    background: rgba(240,180,41,0.08);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 20px rgba(240,180,41,0.15);
+  }
+  .logo span { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 900; letter-spacing: 0.1em; }
+  .nav-right { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-dim); font-weight: 600; }
+
+  /* Main layout — left-aligned hero, right drop zone */
+  main {
+    position: relative; z-index: 2;
+    max-width: 1100px; margin: 0 auto;
+    padding: 80px 32px 60px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+    align-items: center;
+    min-height: calc(100vh - 60px);
+  }
+
+  /* Hero left */
+  .hero { display: flex; flex-direction: column; gap: 24px; }
+  .hero .tag {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.3em; color: var(--amber);
+  }
+  .hero .tag .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--amber);
+    box-shadow: 0 0 10px var(--amber-dim);
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+  .hero h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2.2rem, 4vw, 3.5rem);
+    font-weight: 900; line-height: 1.15;
+  }
+  .hero h1 .warm-gradient {
+    background: linear-gradient(135deg, var(--amber), #ef4444, var(--amber));
+    background-size: 200% auto;
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shimmer 5s linear infinite;
+  }
+  @keyframes shimmer {
+    0% { background-position: 0% center; }
+    100% { background-position: -200% center; }
+  }
+  .hero .subtitle {
+    font-size: 14px; line-height: 1.8; color: var(--text-dim);
+    max-width: 420px;
+  }
+
+  /* VU meter decoration */
+  .vu-meter {
+    display: flex; align-items: flex-end; gap: 4px;
+    height: 40px; margin-top: 8px;
+  }
+  .vu-meter .bar {
+    width: 8px; border-radius: 4px;
+    animation: vu-bounce ease-in-out infinite alternate;
+  }
+  @keyframes vu-bounce {
+    0% { transform: scaleY(0.2); }
+    100% { transform: scaleY(1); }
+  }
+
+  /* Feature pills */
+  .features { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+  .features .pill {
+    display: flex; align-items: center; gap: 6px;
+    padding: 8px 14px; border-radius: 12px;
+    border: 1px solid var(--border);
+    background: rgba(240,180,41,0.03);
+    font-size: 11px; font-weight: 500; color: rgba(245,239,230,0.6);
+  }
+  .features .pill svg { opacity: 0.6; }
+
+  /* Drop zone right */
+  .drop-zone-container { display: flex; flex-direction: column; gap: 16px; }
+  .drop-zone {
+    position: relative;
+    border: 2px dashed rgba(200,160,100,0.2);
+    border-radius: 20px;
+    background: linear-gradient(145deg, rgba(240,180,41,0.02), rgba(22,18,16,0.8));
+    cursor: pointer;
+    transition: all 0.4s;
+    overflow: hidden;
+  }
+  .drop-zone:hover {
+    border-color: rgba(240,180,41,0.4);
+    background: linear-gradient(145deg, rgba(240,180,41,0.05), rgba(22,18,16,0.9));
+    box-shadow: 0 0 50px rgba(240,180,41,0.08), inset 0 0 40px rgba(240,180,41,0.02);
+  }
+  .drop-zone.drag-over {
+    border-color: var(--amber-dim);
+    box-shadow: 0 0 70px rgba(240,180,41,0.15), inset 0 0 60px rgba(240,180,41,0.04);
+    transform: scale(1.01);
+  }
+
+  .drop-content {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 20px;
+    min-height: 340px; padding: 40px 24px;
+  }
+
+  /* Vinyl icon */
+  .vinyl-icon {
+    width: 100px; height: 100px; position: relative;
+    transition: transform 0.4s;
+  }
+  .drop-zone:hover .vinyl-icon { transform: rotate(15deg); }
+  .vinyl-outer {
+    width: 100px; height: 100px; border-radius: 50%;
+    border: 2px solid rgba(240,180,41,0.3);
+    background: radial-gradient(circle, rgba(240,180,41,0.1) 0%, transparent 60%);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 30px rgba(240,180,41,0.12);
+  }
+  .vinyl-inner {
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--amber);
+    box-shadow: 0 0 15px var(--amber-dim);
+  }
+  .vinyl-grooves {
+    position: absolute; inset: 8px; border-radius: 50%;
+    border: 1px dashed rgba(240,180,41,0.12);
+  }
+  .vinyl-grooves::before {
+    content: ''; position: absolute; inset: 10px; border-radius: 50%;
+    border: 1px dashed rgba(240,180,41,0.08);
+  }
+
+  .drop-text { text-align: center; }
+  .drop-text .main-t { font-size: 15px; font-weight: 600; color: var(--warm-white); margin-bottom: 6px; }
+  .drop-text .sub-t { font-size: 12px; color: var(--text-dim); }
+  .drop-text .browse { color: var(--amber); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .drop-text .hint { font-size: 11px; color: rgba(245,239,230,0.25); margin-top: 8px; }
+
+  .format-badges { display: flex; gap: 8px; }
+  .format-badges span {
+    border: 1px solid rgba(240,180,41,0.25);
+    background: rgba(240,180,41,0.05);
+    border-radius: 9999px; padding: 5px 14px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.15em; color: rgba(240,180,41,0.65);
+  }
+
+  /* CTA */
+  .cta-area { text-align: center; }
+  .cta-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 14px 36px; border: none; border-radius: 14px;
+    background: linear-gradient(135deg, var(--amber), var(--copper));
+    color: #0f0c08; font-size: 14px; font-weight: 700;
+    cursor: pointer; transition: all 0.3s;
+    box-shadow: 0 0 30px rgba(240,180,41,0.3);
+  }
+  .cta-btn:hover { box-shadow: 0 0 50px rgba(240,180,41,0.5); transform: translateY(-1px); }
+
+  @media (max-width: 800px) {
+    main { grid-template-columns: 1fr; padding: 40px 20px; gap: 40px; }
+    .hero { align-items: center; text-align: center; }
+    .hero .subtitle { margin: 0 auto; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-warm"></div>
+<div class="grain"></div>
+
+<nav>
+  <div class="nav-inner">
+    <a class="logo" href="#">
+      <div class="logo-icon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <circle cx="8" cy="8" r="4" stroke="#f0b429" stroke-width="1.2"/>
+          <circle cx="8" cy="8" r="1.5" fill="#f0b429"/>
+        </svg>
+      </div>
+      <span>KORD</span>
+    </a>
+    <div class="nav-right">Analog Studio</div>
+  </div>
+</nav>
+
+<main>
+  <section class="hero">
+    <p class="tag"><span class="dot"></span> AI Mastering Engine</p>
+    <h1>Your music,<br><span class="warm-gradient">perfected with soul.</span></h1>
+    <p class="subtitle">Upload your raw mix and let our AI analyze, shape, and master your track with the warmth and precision of a world-class studio — in seconds.</p>
+
+    <div class="vu-meter" id="vuMeter"></div>
+
+    <div class="features">
+      <div class="pill">
+        <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M5.5 1.5v8M1.5 5.5h8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+        Spectral Analysis
+      </div>
+      <div class="pill">
+        <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><circle cx="5.5" cy="5.5" r="4" stroke="currentColor" stroke-width="1.1"/></svg>
+        LUFS Targeting
+      </div>
+      <div class="pill">
+        <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M2 8l2-3 2 1.5 3-4.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Adaptive DSP
+      </div>
+    </div>
+  </section>
+
+  <section class="drop-zone-container">
+    <div class="drop-zone" id="dropZone">
+      <div class="drop-content">
+        <div class="vinyl-icon">
+          <div class="vinyl-outer">
+            <div class="vinyl-inner"></div>
+          </div>
+          <div class="vinyl-grooves"></div>
+        </div>
+        <div class="drop-text">
+          <p class="main-t">Drop your mix here</p>
+          <p class="sub-t">or <span class="browse">browse files</span></p>
+          <p class="hint">WAV or FLAC • Up to 5 min • Any sample rate</p>
+        </div>
+        <div class="format-badges">
+          <span>WAV</span>
+          <span>FLAC</span>
+        </div>
+      </div>
+    </div>
+    <div class="cta-area">
+      <button class="cta-btn">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1L3 6.5h3.5L5 13 11 5.5H7.5L10 1H7z" fill="currentColor"/></svg>
+        Master with KORD
+      </button>
+    </div>
+  </section>
+</main>
+
+<script>
+// VU meter bars
+const vu = document.getElementById('vuMeter');
+const barColors = ['#f0b429','#f0b429','#f59e0b','#ef4444','#ef4444','#f59e0b','#f0b429','#f0b429','#d97706','#f0b429','#ef4444','#f0b429'];
+barColors.forEach((c, i) => {
+  const bar = document.createElement('div');
+  bar.className = 'bar';
+  const h = 30 + Math.abs(Math.sin(i * 0.9)) * 70;
+  bar.style.height = h + '%';
+  bar.style.background = c;
+  bar.style.opacity = 0.5;
+  bar.style.animationDuration = (0.8 + Math.random() * 0.6) + 's';
+  bar.style.animationDelay = (i * 0.08) + 's';
+  bar.style.transformOrigin = 'bottom';
+  vu.appendChild(bar);
+});
+
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); });
+</script>
+</body>
+</html>

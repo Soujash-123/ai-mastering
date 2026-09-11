@@ -1,9 +1,13 @@
 """Tests for job + misc routes defined in api/main.py."""
 from __future__ import annotations
 
+import asyncio
+
 import api.main as main
 from api.schemas import JobStatus
 from auth.schemas import UserRole
+from services.job_store import JobRecord, job_store
+from utils.config import get_settings
 
 
 def test_health(client):
@@ -74,6 +78,52 @@ def test_job_result_completed(client, seed_job):
     body = resp.json()
     assert body["job_id"] == rec.job_id
     assert body["master_wav_url"].endswith("/files/master")
+
+
+def test_completed_result_restores_report_and_intents_from_disk(client, sample_wav):
+    """Persistent jobs free analysis/intents/report from memory at completion;
+    the result payload must hydrate them from the on-disk metadata."""
+    settings = get_settings()
+    rec = JobRecord(
+        job_id=__import__("uuid").uuid4().hex,
+        status=JobStatus.mastering,
+        user_role=UserRole.ADMIN.value,
+        ephemeral=False,
+    )
+    job_dir = settings.data_dir / "jobs" / rec.job_id
+    job_dir.mkdir(parents=True, exist_ok=True)
+    rec.input_path = job_dir / "input.wav"
+    rec.input_path.write_bytes(sample_wav())
+    rec.master_path = job_dir / "master.wav"
+    rec.master_path.write_bytes(sample_wav())
+    job_store._jobs[rec.job_id] = rec
+
+    async def complete():
+        await job_store.update(
+            rec.job_id,
+            report={"mix_assessment": "bright and punchy", "final_summary": "ready"},
+            analysis={"lufs": -14.0, "duration_sec": 1.0},
+            safe_intent={"final_notes": ["polished"]},
+            raw_intent={"raw": "yes"},
+        )
+        await job_store.update(
+            rec.job_id,
+            status=JobStatus.completed,
+            progress=1.0,
+            master_path=rec.master_path,
+        )
+
+    asyncio.run(complete())
+    assert rec.report is None  # in-memory fields were freed (the original bug)
+
+    resp = client.get(f"/api/jobs/{rec.job_id}/result")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["report"]["mix_assessment"] == "bright and punchy"
+    assert body["report"]["final_summary"] == "ready"
+    assert body["analysis"]["lufs"] == -14.0
+    assert body["safe_intent"]["final_notes"] == ["polished"]
+    assert body["raw_intent"] == {"raw": "yes"}
 
 
 def test_job_artifact_path_traversal_blocked(client, seed_job):

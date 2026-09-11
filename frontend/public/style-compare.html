@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KORD — Style Comparison</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Outfit', sans-serif;
+  background: #060608;
+  color: #fff;
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* SWITCHER BAR */
+.switcher-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 10px 20px; gap: 14px;
+  background: rgba(6,6,8,0.96);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  backdrop-filter: blur(24px);
+}
+.sw-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.2em; color: rgba(255,255,255,0.28);
+}
+.sw-pill {
+  display: flex; background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 4px; gap: 3px;
+}
+.sw-btn {
+  padding: 7px 22px; border-radius: 8px; border: none;
+  font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 600;
+  letter-spacing: 0.05em; cursor: pointer; transition: all 0.25s;
+  color: rgba(255,255,255,0.4); background: transparent;
+}
+.sw-btn:hover:not(.v-aurora):not(.v-neon):not(.v-split) {
+  color: rgba(255,255,255,0.7); background: rgba(255,255,255,0.06);
+}
+.v-aurora { background: linear-gradient(135deg,#e07a5f,#f4a37b); color: #111010; box-shadow: 0 0 20px rgba(224,122,95,0.3); }
+.v-neon   { background: linear-gradient(135deg,#22d3ee,#a3e635); color: #09090b; box-shadow: 0 0 20px rgba(34,211,238,0.3); }
+.v-split  { background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.15); }
+.kbd-hint { font-size: 10px; color: rgba(255,255,255,0.2); letter-spacing: 0.05em; }
+.kbd-hint kbd {
+  display: inline-block; padding: 1px 5px; border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.15); font-family: inherit;
+  background: rgba(255,255,255,0.06); font-size: 10px;
+}
+
+/* VIEW CONTAINER */
+.view-container { padding-top: 53px; min-height: 100vh; }
+
+/* SPLIT */
+.split-view { display: none; height: calc(100vh - 53px); overflow: hidden; }
+.split-view.active { display: flex; }
+.split-pane {
+  flex: 1; overflow-y: auto; overflow-x: hidden;
+  scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;
+}
+.split-pane::-webkit-scrollbar { width: 3px; }
+.split-pane::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+.split-divider { width: 1px; background: rgba(255,255,255,0.06); flex-shrink: 0; position: relative; }
+.split-divider::before {
+  content: 'vs';
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  background: rgba(6,6,8,0.95); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px; padding: 6px 8px; font-size: 11px; font-weight: 700;
+  color: rgba(255,255,255,0.3); pointer-events: none; letter-spacing: 0.1em;
+}
+
+/* SINGLE */
+.single-view { display: none; min-height: calc(100vh - 53px); }
+.single-view.active { display: block; }
+
+/* ═══ AURORA (original) ═══ */
+.aurora-wrap {
+  font-family: 'Sora', sans-serif; background: #111010; color: #f0ece6;
+  min-height: 100%; position: relative; overflow: hidden;
+}
+.aurora-wrap * { box-sizing: border-box; }
+.a-blobs { position: absolute; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.a-blob {
+  position: absolute; border-radius: 50%; filter: blur(80px);
+  animation: a-blob-morph 20s ease-in-out infinite alternate;
+}
+.a-blob-1 { width: 500px; height: 500px; top: -15%; right: -5%; background: rgba(224,122,95,0.07); animation-delay: 0s; }
+.a-blob-2 { width: 400px; height: 400px; bottom: -10%; left: 10%; background: rgba(129,178,154,0.05); animation-delay: -5s; }
+.a-blob-3 { width: 300px; height: 300px; top: 40%; left: 50%; background: rgba(242,204,143,0.04); animation-delay: -10s; }
+@keyframes a-blob-morph {
+  0%   { transform: translate(0,0) scale(1) rotate(0deg);   border-radius: 40% 60% 70% 30%/40% 50% 60% 50%; }
+  50%  { transform: translate(30px,-20px) scale(1.1) rotate(45deg); border-radius: 60% 40% 30% 70%/60% 30% 70% 40%; }
+  100% { transform: translate(-20px,15px) scale(0.95) rotate(90deg); border-radius: 50% 60% 40% 60%/50% 40% 60% 40%; }
+}
+.a-nav {
+  position: sticky; top: 0; z-index: 20;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  background: rgba(17,16,16,0.88); backdrop-filter: blur(20px);
+}
+.a-nav-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 16px 28px; }
+.a-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: #f0ece6; }
+.a-logo-mark {
+  width: 32px; height: 32px; border-radius: 10px;
+  background: linear-gradient(135deg,#e07a5f,#f4a37b);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 20px rgba(224,122,95,0.2);
+}
+.a-logo span { font-size: 15px; font-weight: 800; letter-spacing: 0.2em; }
+.a-nav-tag {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 14px; border-radius: 9999px;
+  border: 1px solid rgba(224,122,95,0.2); background: rgba(224,122,95,0.05);
+  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.2em; color: #e07a5f;
+}
+.a-main { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 70px 28px 50px; }
+.a-hero { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: end; margin-bottom: 48px; }
+.a-hero-text { padding-bottom: 20px; }
+.a-eyebrow {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.3em; color: #81b29a; margin-bottom: 16px;
+}
+.a-eyebrow-line { width: 24px; height: 1px; background: #81b29a; opacity: 0.5; }
+.a-hero-text h1 { font-size: clamp(1.8rem,3vw,3.2rem); font-weight: 800; line-height: 1.15; margin-bottom: 14px; }
+.a-accent { background: linear-gradient(135deg,#e07a5f,#f2cc8f); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.a-desc { font-size: 14px; color: rgba(240,236,230,0.4); line-height: 1.7; max-width: 380px; }
+.a-feat-stack { display: flex; flex-direction: column; gap: 10px; }
+.a-feat-card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 18px; border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.07); background: rgba(255,255,255,0.03);
+  transition: all 0.3s;
+}
+.a-feat-card:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.12); }
+.a-ficon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.a-fc-title { font-size: 12px; font-weight: 600; }
+.a-fc-desc { font-size: 10px; color: rgba(240,236,230,0.4); margin-top: 2px; }
+.a-drop {
+  border: 2px dashed rgba(224,122,95,0.15); border-radius: 24px;
+  background: rgba(255,255,255,0.03); cursor: pointer; transition: all 0.4s;
+  overflow: hidden; margin-bottom: 32px;
+}
+.a-drop:hover { border-color: rgba(224,122,95,0.35); background: rgba(224,122,95,0.02); box-shadow: 0 0 60px rgba(224,122,95,0.06); }
+.a-drop.drag-over { border-color: #e07a5f; box-shadow: 0 0 80px rgba(224,122,95,0.12); }
+.a-drop-inner { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 32px; padding: 36px 40px; min-height: 200px; }
+.a-bars { display: flex; align-items: center; gap: 3px; height: 60px; }
+.a-bar {
+  width: 4px; border-radius: 9999px;
+  background: linear-gradient(180deg,#e07a5f,#f4a37b); transform-origin: center;
+  animation: a-bar-pulse ease-in-out infinite alternate;
+}
+@keyframes a-bar-pulse { 0% { transform: scaleY(0.3); } 100% { transform: scaleY(1); } }
+.a-drop-info .a-dt { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+.a-drop-info .a-ds { font-size: 13px; color: rgba(240,236,230,0.4); margin-bottom: 14px; }
+.a-browse { color: #e07a5f; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.a-ftags { display: flex; gap: 6px; flex-wrap: wrap; }
+.a-ftags span { padding: 5px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.07); background: rgba(255,255,255,0.02); font-size: 10px; font-weight: 600; color: rgba(240,236,230,0.4); letter-spacing: 0.1em; }
+.a-drop-action { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.a-drop-btn {
+  width: 64px; height: 64px; border-radius: 18px; border: none;
+  background: linear-gradient(135deg,#e07a5f,#f4a37b); color: #111010;
+  cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 25px rgba(224,122,95,0.2);
+}
+.a-drop-btn:hover { box-shadow: 0 0 40px rgba(224,122,95,0.35); transform: scale(1.05); }
+.a-drop-action .a-ul { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; color: rgba(240,236,230,0.4); }
+.a-bottom { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.a-cta {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 16px 40px; border: none; border-radius: 16px;
+  background: linear-gradient(135deg,#e07a5f,#f4a37b);
+  color: #111010; font-size: 14px; font-weight: 700; font-family: 'Sora',sans-serif;
+  cursor: pointer; transition: all 0.3s; box-shadow: 0 0 30px rgba(224,122,95,0.25); letter-spacing: 0.03em;
+}
+.a-cta:hover { box-shadow: 0 0 50px rgba(224,122,95,0.4); transform: translateY(-2px); }
+.a-pills { display: flex; gap: 16px; flex-wrap: wrap; }
+.a-pill { display: flex; align-items: center; gap: 6px; font-size: 11px; color: rgba(240,236,230,0.4); }
+.a-dot { width: 5px; height: 5px; border-radius: 50%; }
+
+/* ═══ NEON WAVEFORM (redesigned) ═══ */
+.neon-wrap {
+  font-family: 'Outfit', sans-serif; background: #09090b; color: #fafafa;
+  min-height: 100%; position: relative; overflow: hidden;
+}
+.neon-wrap * { box-sizing: border-box; }
+.n-grid {
+  position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background-image: linear-gradient(rgba(255,255,255,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.025) 1px,transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 30%,black 20%,transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 30%,black 20%,transparent 100%);
+}
+.n-glow1 { position: absolute; top: -15%; left: 50%; width: 600px; height: 600px; transform: translateX(-50%); background: radial-gradient(circle,rgba(34,211,238,0.07) 0%,transparent 65%); pointer-events: none; z-index: 0; }
+.n-glow2 { position: absolute; bottom: 10%; right: -5%; width: 350px; height: 350px; background: radial-gradient(circle,rgba(163,230,53,0.05) 0%,transparent 65%); pointer-events: none; z-index: 0; }
+.n-glow3 { position: absolute; bottom: 5%; left: -5%; width: 300px; height: 300px; background: radial-gradient(circle,rgba(244,114,182,0.04) 0%,transparent 65%); pointer-events: none; z-index: 0; }
+.n-nav {
+  position: sticky; top: 0; z-index: 20;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: rgba(9,9,11,0.88); backdrop-filter: blur(24px);
+}
+.n-nav-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 14px 28px; }
+.n-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: #fafafa; }
+.n-logo-glyph {
+  width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid rgba(34,211,238,0.35); border-radius: 9px;
+  background: rgba(34,211,238,0.05); box-shadow: 0 0 16px rgba(34,211,238,0.12),inset 0 0 12px rgba(34,211,238,0.04);
+}
+.n-logo span { font-size: 16px; font-weight: 800; letter-spacing: 0.22em; }
+.n-nav-tag { display: flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(250,250,250,0.4); }
+.n-live-dot { width: 7px; height: 7px; border-radius: 50%; background: #a3e635; box-shadow: 0 0 10px #a3e635; animation: n-blink 2s ease-in-out infinite; }
+@keyframes n-blink { 0%,100% { opacity:1; box-shadow:0 0 10px #a3e635; } 50% { opacity:0.3; box-shadow:0 0 4px #a3e635; } }
+.n-main { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 0 28px 60px; }
+.n-wave-hero { position: relative; width: 100%; height: 160px; margin-bottom: -40px; }
+.n-wave-hero canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.n-wave-overlay { position: absolute; inset: 0; background: linear-gradient(to bottom,transparent 60%,#09090b 100%); pointer-events: none; }
+.n-hero-card {
+  position: relative; z-index: 2;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: center;
+  padding: 36px 40px; border-radius: 24px;
+  border: 1px solid rgba(34,211,238,0.1); background: rgba(9,9,11,0.72);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 0 0 1px rgba(34,211,238,0.05),0 32px 60px rgba(0,0,0,0.5);
+  margin-bottom: 28px;
+}
+.n-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 14px; border-radius: 9999px;
+  border: 1px solid rgba(34,211,238,0.2); background: rgba(34,211,238,0.06);
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.2em; color: #22d3ee; margin-bottom: 18px;
+}
+.n-hero-card h1 { font-size: clamp(1.8rem,3vw,3rem); font-weight: 900; line-height: 1.1; margin-bottom: 12px; }
+.n-neon { background: linear-gradient(90deg,#22d3ee,#a3e635,#22d3ee); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: n-shift 3s linear infinite; }
+@keyframes n-shift { 0% { background-position: 0% center; } 100% { background-position: -200% center; } }
+.n-hero-desc { font-size: 13px; color: rgba(250,250,250,0.4); line-height: 1.7; }
+.n-feat-list { display: flex; flex-direction: column; gap: 12px; }
+.n-feat-item {
+  display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.05); background: rgba(255,255,255,0.02);
+  transition: all 0.3s; cursor: default; position: relative; overflow: hidden;
+}
+.n-feat-item::before { content: ''; position: absolute; left:0; top:0; bottom:0; width:3px; border-radius:0 3px 3px 0; opacity:0; transition: opacity 0.3s; }
+.fi-cyan::before { background:#22d3ee; box-shadow:0 0 10px #22d3ee; }
+.fi-lime::before { background:#a3e635; box-shadow:0 0 10px #a3e635; }
+.fi-pink::before { background:#f472b6; box-shadow:0 0 10px #f472b6; }
+.n-feat-item:hover::before { opacity:1; }
+.n-feat-item:hover { background:rgba(255,255,255,0.04); border-color:rgba(255,255,255,0.1); }
+.n-ficon { width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.n-fc-title { font-size:12px; font-weight:600; color:#fafafa; }
+.n-fc-desc { font-size:10px; color:rgba(250,250,250,0.4); margin-top:2px; }
+.n-drop {
+  position:relative; border:1px solid rgba(34,211,238,0.12); border-radius:22px;
+  background:rgba(255,255,255,0.015); cursor:pointer; transition:all 0.35s; overflow:hidden; margin-bottom:28px;
+}
+.n-drop::before { content:''; position:absolute; inset:0; border-radius:22px; background:linear-gradient(135deg,rgba(34,211,238,0.03) 0%,transparent 50%,rgba(163,230,53,0.02) 100%); pointer-events:none; }
+.n-drop::after { content:''; position:absolute; bottom:0; left:8%; right:8%; height:1px; background:linear-gradient(90deg,transparent,#22d3ee 30%,#a3e635 70%,transparent); opacity:0; transition:opacity 0.4s; }
+.n-drop:hover::after { opacity:0.6; }
+.n-drop:hover { border-color:rgba(34,211,238,0.28); box-shadow:0 0 50px rgba(34,211,238,0.06),0 0 0 1px rgba(34,211,238,0.1); }
+.n-drop.n-drag-over { border-color:#22d3ee; box-shadow:0 0 80px rgba(34,211,238,0.12),0 0 0 2px rgba(34,211,238,0.25); background:rgba(34,211,238,0.03); }
+.n-drop.n-drag-over::after { opacity:1; }
+.n-drop-content { display:grid; grid-template-columns:1fr auto; gap:32px; align-items:center; padding:32px 36px; min-height:160px; }
+.n-wb-row { display:flex; align-items:center; gap:2.5px; height:52px; margin-bottom:14px; }
+.n-wb-bar { width:3px; border-radius:9999px; background:linear-gradient(180deg,#22d3ee,rgba(34,211,238,0.2)); transform-origin:center; animation:n-wb ease-in-out infinite alternate; box-shadow:0 0 6px rgba(34,211,238,0.3); }
+@keyframes n-wb { 0% { transform:scaleY(0.2); } 100% { transform:scaleY(1); } }
+.n-dt { font-size:17px; font-weight:700; margin-bottom:4px; }
+.n-ds { font-size:13px; color:rgba(250,250,250,0.4); margin-bottom:4px; }
+.n-dbrowse { color:#22d3ee; text-decoration:underline; text-underline-offset:3px; }
+.n-ftags { display:flex; gap:6px; flex-wrap:wrap; margin-top:12px; }
+.n-ftags span { padding:4px 10px; border-radius:7px; border:1px solid rgba(34,211,238,0.15); background:rgba(34,211,238,0.04); font-size:10px; font-weight:600; color:rgba(34,211,238,0.7); letter-spacing:0.08em; }
+.n-drop-right { display:flex; flex-direction:column; align-items:center; gap:8px; }
+.n-upload-btn {
+  width:60px; height:60px; border-radius:16px;
+  border:1.5px solid rgba(34,211,238,0.35); background:rgba(34,211,238,0.07); color:#22d3ee;
+  display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.3s;
+  box-shadow:0 0 24px rgba(34,211,238,0.1); font-family:inherit;
+}
+.n-upload-btn:hover { background:rgba(34,211,238,0.14); box-shadow:0 0 36px rgba(34,211,238,0.2); transform:scale(1.06); border-color:rgba(34,211,238,0.55); }
+.n-ul { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.15em; color:rgba(250,250,250,0.35); }
+.n-bottom { display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+.n-stats { display:flex; gap:14px; flex-wrap:wrap; }
+.n-stat {
+  display:flex; flex-direction:column; align-items:center;
+  padding:14px 20px; border:1px solid rgba(255,255,255,0.06); border-radius:14px;
+  background:rgba(255,255,255,0.02); min-width:90px; transition:border-color 0.3s;
+}
+.n-stat:hover { border-color:rgba(34,211,238,0.2); }
+.n-num { font-size:20px; font-weight:800; background:linear-gradient(135deg,#22d3ee,#a3e635); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+.n-lbl { font-size:9px; color:rgba(250,250,250,0.35); text-transform:uppercase; letter-spacing:0.15em; margin-top:3px; }
+.n-right-col { display:flex; flex-direction:column; align-items:flex-end; gap:12px; }
+.n-cta {
+  display:inline-flex; align-items:center; gap:10px;
+  padding:14px 32px; border-radius:14px;
+  border:1.5px solid rgba(34,211,238,0.4); background:transparent;
+  color:#22d3ee; font-size:14px; font-weight:700; font-family:'Outfit',sans-serif;
+  cursor:pointer; transition:all 0.3s; position:relative; overflow:hidden; letter-spacing:0.04em;
+}
+.n-cta::before { content:''; position:absolute; inset:0; background:linear-gradient(135deg,rgba(34,211,238,0.1) 0%,rgba(163,230,53,0.06) 100%); opacity:0; transition:opacity 0.3s; }
+.n-cta:hover::before { opacity:1; }
+.n-cta:hover { border-color:rgba(34,211,238,0.7); box-shadow:0 0 30px rgba(34,211,238,0.15),0 0 0 1px rgba(34,211,238,0.3); transform:translateY(-1px); }
+.n-cta span { position:relative; }
+.n-trust { display:flex; gap:14px; flex-wrap:wrap; }
+.n-trust-pill { display:flex; align-items:center; gap:6px; font-size:11px; color:rgba(250,250,250,0.4); }
+.n-trust-dot { width:5px; height:5px; border-radius:50%; }
+
+/* Responsive */
+@media (max-width:900px) {
+  .a-hero { grid-template-columns:1fr; }
+  .n-hero-card { grid-template-columns:1fr; }
+  .n-drop-content { grid-template-columns:1fr; }
+  .a-drop-inner { grid-template-columns:1fr; text-align:center; justify-items:center; }
+}
+</style>
+</head>
+<body>
+
+<!-- SWITCHER -->
+<div class="switcher-bar">
+  <span class="sw-label">View</span>
+  <div class="sw-pill">
+    <button class="sw-btn v-aurora" id="btnA" onclick="setView('aurora')">🌄 Midnight Aurora</button>
+    <button class="sw-btn" id="btnS" onclick="setView('split')">⟷ Compare</button>
+    <button class="sw-btn" id="btnN" onclick="setView('neon')">⚡ Neon Waveform</button>
+  </div>
+  <span class="kbd-hint"><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> to switch</span>
+</div>
+
+<div class="view-container">
+
+  <!-- SPLIT VIEW -->
+  <div class="split-view" id="splitView">
+    <div class="split-pane" id="aPane">
+      <!-- Aurora inside split -->
+      <div class="aurora-wrap">
+        <div class="a-blobs"><div class="a-blob a-blob-1"></div><div class="a-blob a-blob-2"></div><div class="a-blob a-blob-3"></div></div>
+        <nav class="a-nav"><div class="a-nav-inner">
+          <a class="a-logo" href="#"><div class="a-logo-mark"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h1.5l1.5-3 2 6 1.5-4 1.5 2H13" stroke="#111010" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span>KORD</span></a>
+          <div class="a-nav-tag"><svg width="6" height="6" viewBox="0 0 6 6" fill="none"><circle cx="3" cy="3" r="3" fill="#81b29a"/></svg>Engine Online</div>
+        </div></nav>
+        <main class="a-main">
+          <section class="a-hero">
+            <div class="a-hero-text">
+              <p class="a-eyebrow"><span class="a-eyebrow-line"></span> AI Mastering Studio</p>
+              <h1>Craft your sound.<br><span class="a-accent">Own your master.</span></h1>
+              <p class="a-desc">Spectral analysis meets adaptive DSP. Upload raw audio and receive streaming-ready masters shaped by AI — no presets, pure precision.</p>
+            </div>
+            <div class="a-feat-stack">
+              <div class="a-feat-card"><div class="a-ficon" style="background:rgba(224,122,95,0.1);border:1px solid rgba(224,122,95,0.2);"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h2l1.5-4 2 8 2-5 1.5 2H13" stroke="#e07a5f" stroke-width="1.3" stroke-linecap="round"/></svg></div><div><p class="a-fc-title">Spectral Analysis</p><p class="a-fc-desc">Deep frequency profiling of your mix</p></div></div>
+              <div class="a-feat-card"><div class="a-ficon" style="background:rgba(129,178,154,0.1);border:1px solid rgba(129,178,154,0.2);"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="4" stroke="#81b29a" stroke-width="1.2"/><path d="M7 5v4M5 7h4" stroke="#81b29a" stroke-width="1.2" stroke-linecap="round"/></svg></div><div><p class="a-fc-title">Adaptive DSP Chain</p><p class="a-fc-desc">EQ, compression, limiting — all dynamic</p></div></div>
+              <div class="a-feat-card"><div class="a-ficon" style="background:rgba(242,204,143,0.1);border:1px solid rgba(242,204,143,0.2);"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 10l3-3 3 3" stroke="#f2cc8f" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 6l3-3 3 3" stroke="#f2cc8f" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.4"/></svg></div><div><p class="a-fc-title">Streaming Ready</p><p class="a-fc-desc">LUFS-targeted exports for every platform</p></div></div>
+            </div>
+          </section>
+          <div class="a-drop" id="aDrop1"><div class="a-drop-inner">
+            <div><div class="a-bars" id="aBars1"></div></div>
+            <div class="a-drop-info"><p class="a-dt">Drop your mix here</p><p class="a-ds">or <span class="a-browse">browse your files</span></p><div class="a-ftags"><span>WAV</span><span>FLAC</span><span>24-bit</span><span>Any sample rate</span></div></div>
+            <div class="a-drop-action"><button class="a-drop-btn"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M11 16V4M11 4L6 9M11 4L16 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 18h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><span class="a-ul">Upload</span></div>
+          </div></div>
+          <div class="a-bottom">
+            <button class="a-cta">Master with KORD <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M10 5l3 3-3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <div class="a-pills">
+              <div class="a-pill"><div class="a-dot" style="background:#81b29a;box-shadow:0 0 6px #81b29a"></div> Encrypted</div>
+              <div class="a-pill"><div class="a-dot" style="background:#e07a5f;box-shadow:0 0 6px #e07a5f"></div> Auto-deletes 10 min</div>
+              <div class="a-pill"><div class="a-dot" style="background:#f2cc8f;box-shadow:0 0 6px #f2cc8f"></div> No account needed</div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <div class="split-divider"></div>
+
+    <!-- Neon inside split -->
+    <div class="split-pane" id="nPane">
+      <div class="neon-wrap">
+        <div class="n-grid"></div><div class="n-glow1"></div><div class="n-glow2"></div><div class="n-glow3"></div>
+        <nav class="n-nav"><div class="n-nav-inner">
+          <a class="n-logo" href="#"><div class="n-logo-glyph"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 7h2l1.5-4 2 8 2-6 1.5 3H12" stroke="#22d3ee" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span>KORD</span></a>
+          <div class="n-nav-tag"><div class="n-live-dot"></div> Engine Ready</div>
+        </div></nav>
+        <div class="n-main">
+          <div class="n-wave-hero"><canvas id="wc1"></canvas><div class="n-wave-overlay"></div></div>
+          <div class="n-hero-card">
+            <div>
+              <div class="n-chip"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1 5h1.5l1-3 1.5 6 1.5-4.5L8 5h1" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg> Real-time Analysis</div>
+              <h1>Master your sound<br><span class="n-neon">with intelligence.</span></h1>
+              <p class="n-hero-desc">Feed your raw audio into our spectral AI engine. Get streaming-ready masters with adaptive EQ, multiband compression, and surgical DSP — all in real-time.</p>
+            </div>
+            <div class="n-feat-list">
+              <div class="n-feat-item fi-cyan"><div class="n-ficon" style="background:rgba(34,211,238,0.08);border:1px solid rgba(34,211,238,0.2);"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h2l1.5-4 2 8 2-5 1.5 2H13" stroke="#22d3ee" stroke-width="1.3" stroke-linecap="round"/></svg></div><div><p class="n-fc-title">Spectral Analysis</p><p class="n-fc-desc">Deep frequency profiling of your mix</p></div></div>
+              <div class="n-feat-item fi-lime"><div class="n-ficon" style="background:rgba(163,230,53,0.08);border:1px solid rgba(163,230,53,0.2);"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="4" stroke="#a3e635" stroke-width="1.2"/><path d="M7 5v4M5 7h4" stroke="#a3e635" stroke-width="1.2" stroke-linecap="round"/></svg></div><div><p class="n-fc-title">Adaptive DSP Chain</p><p class="n-fc-desc">EQ, compression, limiting — all dynamic</p></div></div>
+              <div class="n-feat-item fi-pink"><div class="n-ficon" style="background:rgba(244,114,182,0.08);border:1px solid rgba(244,114,182,0.2);"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 10l3-3 3 3" stroke="#f472b6" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 6l3-3 3 3" stroke="#f472b6" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.4"/></svg></div><div><p class="n-fc-title">Streaming Ready</p><p class="n-fc-desc">LUFS-targeted exports for every platform</p></div></div>
+            </div>
+          </div>
+          <div class="n-drop" id="nDrop1"><div class="n-drop-content">
+            <div><div class="n-wb-row" id="nBars1"></div><p class="n-dt">Drop audio to begin mastering</p><p class="n-ds">or <span class="n-dbrowse">browse your files</span></p><div class="n-ftags"><span>WAV</span><span>FLAC</span><span>24-bit</span><span>Any sample rate</span></div></div>
+            <div class="n-drop-right"><button class="n-upload-btn"><svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 14V4M10 4L6 8M10 4L14 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button><span class="n-ul">Upload</span></div>
+          </div></div>
+          <div class="n-bottom">
+            <div class="n-stats"><div class="n-stat"><div class="n-num">0.4s</div><div class="n-lbl">Avg Analysis</div></div><div class="n-stat"><div class="n-num">-14</div><div class="n-lbl">LUFS Target</div></div><div class="n-stat"><div class="n-num">8-band</div><div class="n-lbl">Adaptive EQ</div></div><div class="n-stat"><div class="n-num">24-bit</div><div class="n-lbl">Output</div></div></div>
+            <div class="n-right-col">
+              <button class="n-cta"><span>Master with KORD</span><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M10 5l3 3-3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <div class="n-trust"><div class="n-trust-pill"><div class="n-trust-dot" style="background:#a3e635;box-shadow:0 0 6px #a3e635"></div>Encrypted</div><div class="n-trust-pill"><div class="n-trust-dot" style="background:#22d3ee;box-shadow:0 0 6px #22d3ee"></div>Auto-deletes 10 min</div><div class="n-trust-pill"><div class="n-trust-dot" style="background:#f472b6;box-shadow:0 0 6px #f472b6"></div>No account needed</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SINGLE: AURORA -->
+  <div class="single-view active" id="aView">
+    <div class="aurora-wrap">
+      <div class="a-blobs"><div class="a-blob a-blob-1"></div><div class="a-blob a-blob-2"></div><div class="a-blob a-blob-3"></div></div>
+      <nav class="a-nav"><div class="a-nav-inner">
+        <a class="a-logo" href="#"><div class="a-logo-mark"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h1.5l1.5-3 2 6 1.5-4 1.5 2H13" stroke="#111010" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span>KORD</span></a>
+        <div class="a-nav-tag"><svg width="6" height="6" viewBox="0 0 6 6" fill="none"><circle cx="3" cy="3" r="3" fill="#81b29a"/></svg>Engine Online</div>
+      </div></nav>
+      <main class="a-main">
+        <section class="a-hero">
+          <div class="a-hero-text">
+            <p class="a-eyebrow"><span class="a-eyebrow-line"></span> AI Mastering Studio</p>
+            <h1>Craft your sound.<br><span class="a-accent">Own your master.</span></h1>
+            <p class="a-desc">Spectral analysis meets adaptive DSP. Upload raw audio and receive streaming-ready masters shaped by AI — no presets, pure precision.</p>
+          </div>
+          <div class="a-feat-stack">
+            <div class="a-feat-card"><div class="a-ficon" style="background:rgba(224,122,95,0.1);border:1px solid rgba(224,122,95,0.2);"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h2l1.5-4 2 8 2-5 1.5 2H13" stroke="#e07a5f" stroke-width="1.3" stroke-linecap="round"/></svg></div><div><p class="a-fc-title">Spectral Analysis</p><p class="a-fc-desc">Deep frequency profiling of your mix</p></div></div>
+            <div class="a-feat-card"><div class="a-ficon" style="background:rgba(129,178,154,0.1);border:1px solid rgba(129,178,154,0.2);"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="4" stroke="#81b29a" stroke-width="1.2"/><path d="M7 5v4M5 7h4" stroke="#81b29a" stroke-width="1.2" stroke-linecap="round"/></svg></div><div><p class="a-fc-title">Adaptive DSP Chain</p><p class="a-fc-desc">EQ, compression, limiting — all dynamic</p></div></div>
+            <div class="a-feat-card"><div class="a-ficon" style="background:rgba(242,204,143,0.1);border:1px solid rgba(242,204,143,0.2);"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 10l3-3 3 3" stroke="#f2cc8f" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 6l3-3 3 3" stroke="#f2cc8f" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.4"/></svg></div><div><p class="a-fc-title">Streaming Ready</p><p class="a-fc-desc">LUFS-targeted exports for every platform</p></div></div>
+          </div>
+        </section>
+        <div class="a-drop" id="aDrop2"><div class="a-drop-inner">
+          <div><div class="a-bars" id="aBars2"></div></div>
+          <div class="a-drop-info"><p class="a-dt">Drop your mix here</p><p class="a-ds">or <span class="a-browse">browse your files</span></p><div class="a-ftags"><span>WAV</span><span>FLAC</span><span>24-bit</span><span>Any sample rate</span></div></div>
+          <div class="a-drop-action"><button class="a-drop-btn"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M11 16V4M11 4L6 9M11 4L16 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 18h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><span class="a-ul">Upload</span></div>
+        </div></div>
+        <div class="a-bottom">
+          <button class="a-cta">Master with KORD <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M10 5l3 3-3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <div class="a-pills">
+            <div class="a-pill"><div class="a-dot" style="background:#81b29a;box-shadow:0 0 6px #81b29a"></div>Encrypted</div>
+            <div class="a-pill"><div class="a-dot" style="background:#e07a5f;box-shadow:0 0 6px #e07a5f"></div>Auto-deletes 10 min</div>
+            <div class="a-pill"><div class="a-dot" style="background:#f2cc8f;box-shadow:0 0 6px #f2cc8f"></div>No account needed</div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- SINGLE: NEON -->
+  <div class="single-view" id="nView">
+    <div class="neon-wrap">
+      <div class="n-grid"></div><div class="n-glow1"></div><div class="n-glow2"></div><div class="n-glow3"></div>
+      <nav class="n-nav"><div class="n-nav-inner">
+        <a class="n-logo" href="#"><div class="n-logo-glyph"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 7h2l1.5-4 2 8 2-6 1.5 3H12" stroke="#22d3ee" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span>KORD</span></a>
+        <div class="n-nav-tag"><div class="n-live-dot"></div> Engine Ready</div>
+      </div></nav>
+      <div class="n-main">
+        <div class="n-wave-hero"><canvas id="wc2"></canvas><div class="n-wave-overlay"></div></div>
+        <div class="n-hero-card">
+          <div>
+            <div class="n-chip"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1 5h1.5l1-3 1.5 6 1.5-4.5L8 5h1" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg> Real-time Analysis</div>
+            <h1>Master your sound<br><span class="n-neon">with intelligence.</span></h1>
+            <p class="n-hero-desc">Feed your raw audio into our spectral AI engine. Get streaming-ready masters with adaptive EQ, multiband compression, and surgical DSP — all in real-time.</p>
+          </div>
+          <div class="n-feat-list">
+            <div class="n-feat-item fi-cyan"><div class="n-ficon" style="background:rgba(34,211,238,0.08);border:1px solid rgba(34,211,238,0.2);"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h2l1.5-4 2 8 2-5 1.5 2H13" stroke="#22d3ee" stroke-width="1.3" stroke-linecap="round"/></svg></div><div><p class="n-fc-title">Spectral Analysis</p><p class="n-fc-desc">Deep frequency profiling of your mix</p></div></div>
+            <div class="n-feat-item fi-lime"><div class="n-ficon" style="background:rgba(163,230,53,0.08);border:1px solid rgba(163,230,53,0.2);"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="4" stroke="#a3e635" stroke-width="1.2"/><path d="M7 5v4M5 7h4" stroke="#a3e635" stroke-width="1.2" stroke-linecap="round"/></svg></div><div><p class="n-fc-title">Adaptive DSP Chain</p><p class="n-fc-desc">EQ, compression, limiting — all dynamic</p></div></div>
+            <div class="n-feat-item fi-pink"><div class="n-ficon" style="background:rgba(244,114,182,0.08);border:1px solid rgba(244,114,182,0.2);"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 10l3-3 3 3" stroke="#f472b6" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 6l3-3 3 3" stroke="#f472b6" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.4"/></svg></div><div><p class="n-fc-title">Streaming Ready</p><p class="n-fc-desc">LUFS-targeted exports for every platform</p></div></div>
+          </div>
+        </div>
+        <div class="n-drop" id="nDrop2"><div class="n-drop-content">
+          <div><div class="n-wb-row" id="nBars2"></div><p class="n-dt">Drop audio to begin mastering</p><p class="n-ds">or <span class="n-dbrowse">browse your files</span></p><div class="n-ftags"><span>WAV</span><span>FLAC</span><span>24-bit</span><span>Any sample rate</span></div></div>
+          <div class="n-drop-right"><button class="n-upload-btn"><svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 14V4M10 4L6 8M10 4L14 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button><span class="n-ul">Upload</span></div>
+        </div></div>
+        <div class="n-bottom">
+          <div class="n-stats"><div class="n-stat"><div class="n-num">0.4s</div><div class="n-lbl">Avg Analysis</div></div><div class="n-stat"><div class="n-num">-14</div><div class="n-lbl">LUFS Target</div></div><div class="n-stat"><div class="n-num">8-band</div><div class="n-lbl">Adaptive EQ</div></div><div class="n-stat"><div class="n-num">24-bit</div><div class="n-lbl">Output</div></div></div>
+          <div class="n-right-col">
+            <button class="n-cta"><span>Master with KORD</span><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M10 5l3 3-3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <div class="n-trust"><div class="n-trust-pill"><div class="n-trust-dot" style="background:#a3e635;box-shadow:0 0 6px #a3e635"></div>Encrypted</div><div class="n-trust-pill"><div class="n-trust-dot" style="background:#22d3ee;box-shadow:0 0 6px #22d3ee"></div>Auto-deletes 10 min</div><div class="n-trust-pill"><div class="n-trust-dot" style="background:#f472b6;box-shadow:0 0 6px #f472b6"></div>No account needed</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── VIEW SWITCHER ──────────────────────────────
+let cur = 'aurora';
+const views = { aurora: 'aView', split: 'splitView', neon: 'nView' };
+const btns  = { aurora: 'btnA', split: 'btnS', neon: 'btnN' };
+
+function setView(v) {
+  cur = v;
+  Object.keys(views).forEach(k => {
+    document.getElementById(views[k]).classList.toggle('active', k === v);
+  });
+  ['btnA','btnS','btnN'].forEach(id => {
+    const b = document.getElementById(id);
+    b.className = 'sw-btn';
+  });
+  const cls = v === 'aurora' ? 'v-aurora' : v === 'neon' ? 'v-neon' : 'v-split';
+  document.getElementById(btns[v]).classList.add(cls);
+
+  if (v === 'split') initWave('wc1');
+  if (v === 'neon')  initWave('wc2');
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === '1') setView('aurora');
+  if (e.key === '2') setView('split');
+  if (e.key === '3') setView('neon');
+});
+
+// ── AURORA BARS ────────────────────────────────
+const aHeights = [35,55,80,65,90,70,85,50,75,60,40];
+['aBars1','aBars2'].forEach(id => {
+  const c = document.getElementById(id);
+  if (!c) return;
+  aHeights.forEach((h, i) => {
+    const b = document.createElement('div');
+    b.className = 'a-bar';
+    b.style.height = h + 'px';
+    b.style.animationDuration = (0.6 + Math.random() * 0.8) + 's';
+    b.style.animationDelay = (i * 0.07) + 's';
+    c.appendChild(b);
+  });
+});
+
+// ── NEON BARS ──────────────────────────────────
+const nHeights = [20,35,48,28,52,44,38,52,42,32,24,45,36,28,50];
+['nBars1','nBars2'].forEach(id => {
+  const c = document.getElementById(id);
+  if (!c) return;
+  nHeights.forEach((h, i) => {
+    const b = document.createElement('div');
+    b.className = 'n-wb-bar';
+    b.style.height = h + 'px';
+    b.style.animationDuration = (0.5 + Math.random() * 0.9) + 's';
+    b.style.animationDelay = (i * 0.06) + 's';
+    if (i % 5 === 0) b.style.background = 'linear-gradient(180deg,#a3e635,rgba(163,230,53,0.2))';
+    else if (i % 7 === 0) b.style.background = 'linear-gradient(180deg,#f472b6,rgba(244,114,182,0.2))';
+    c.appendChild(b);
+  });
+});
+
+// ── DROP ZONE EVENTS ───────────────────────────
+['aDrop1','aDrop2'].forEach(id => {
+  const d = document.getElementById(id);
+  if (!d) return;
+  d.addEventListener('dragover', e => { e.preventDefault(); d.classList.add('drag-over'); });
+  d.addEventListener('dragleave', () => d.classList.remove('drag-over'));
+  d.addEventListener('drop', e => { e.preventDefault(); d.classList.remove('drag-over'); });
+});
+['nDrop1','nDrop2'].forEach(id => {
+  const d = document.getElementById(id);
+  if (!d) return;
+  d.addEventListener('dragover', e => { e.preventDefault(); d.classList.add('n-drag-over'); });
+  d.addEventListener('dragleave', () => d.classList.remove('n-drag-over'));
+  d.addEventListener('drop', e => { e.preventDefault(); d.classList.remove('n-drag-over'); });
+});
+
+// ── NEON CANVAS WAVEFORM ───────────────────────
+const initialized = {};
+const phases = { wc1: 0, wc2: 0 };
+
+function initWave(id) {
+  if (initialized[id]) return;
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  initialized[id] = true;
+  const ctx = canvas.getContext('2d');
+
+  function resize() {
+    const p = canvas.parentElement;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = p.offsetWidth * dpr;
+    canvas.height = p.offsetHeight * dpr;
+    canvas.style.width = p.offsetWidth + 'px';
+    canvas.style.height = p.offsetHeight + 'px';
+    ctx.scale(dpr, dpr);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  function draw() {
+    const pw = canvas.parentElement.offsetWidth;
+    const ph = canvas.parentElement.offsetHeight;
+    ctx.clearRect(0, 0, pw, ph);
+    const ph2 = phases[id];
+
+    // gradient wave
+    ctx.beginPath();
+    ctx.lineWidth = 2;
+    const g = ctx.createLinearGradient(0,0,pw,0);
+    g.addColorStop(0,'rgba(34,211,238,0)');
+    g.addColorStop(0.15,'rgba(34,211,238,0.8)');
+    g.addColorStop(0.5,'rgba(163,230,53,0.8)');
+    g.addColorStop(0.85,'rgba(34,211,238,0.8)');
+    g.addColorStop(1,'rgba(34,211,238,0)');
+    ctx.strokeStyle = g;
+    for (let x = 0; x <= pw; x += 1.5) {
+      const p2 = x / pw;
+      const env = Math.sin(p2 * Math.PI);
+      const y = ph/2 + Math.sin(p2*13 + ph2)*ph*0.28*env + Math.sin(p2*28+ph2*1.5)*ph*0.09*env;
+      x === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+
+    // mirror ghost
+    ctx.beginPath(); ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(34,211,238,0.1)';
+    for (let x = 0; x <= pw; x += 1.5) {
+      const p2 = x / pw;
+      const env = Math.sin(p2 * Math.PI);
+      const y = ph/2 - (Math.sin(p2*13+ph2)*ph*0.24*env + Math.sin(p2*28+ph2*1.5)*ph*0.07*env);
+      x === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+
+    // fill glow
+    const fg = ctx.createLinearGradient(0,0,0,ph);
+    fg.addColorStop(0,'rgba(34,211,238,0.06)');
+    fg.addColorStop(1,'rgba(34,211,238,0)');
+    ctx.beginPath();
+    for (let x = 0; x <= pw; x += 1.5) {
+      const p2 = x / pw;
+      const env = Math.sin(p2*Math.PI);
+      const y = ph/2 + Math.sin(p2*13+ph2)*ph*0.28*env + Math.sin(p2*28+ph2*1.5)*ph*0.09*env;
+      x === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    }
+    ctx.lineTo(pw,ph); ctx.lineTo(0,ph); ctx.closePath();
+    ctx.fillStyle = fg; ctx.fill();
+
+    phases[id] += 0.018;
+    requestAnimationFrame(draw);
+  }
+  draw();
+}
+</script>
+</body>
+</html>

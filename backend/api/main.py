@@ -17,15 +17,31 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
 from api.result_builder import build_job_result, build_ws_result_payload
-from api.schemas import JobCreateResponse, JobResultResponse, JobStatus, JobStatusResponse
+from api.schemas import (
+    FinalizeRequest,
+    JobCreateResponse,
+    JobResultResponse,
+    JobStatus,
+    JobStatusResponse,
+    PreviewRequest,
+    PreviewResponse,
+)
 from auth.admin_router import router as admin_router
 from auth.database import init_db
-from auth.dependencies import get_current_user
+from auth.dependencies import get_current_user, require_roles
 from auth.early_access_router import router as early_access_router
 from auth.models import User
 from auth.permissions import duration_limit_message, max_upload_duration_sec
 from auth.router import router as auth_router
 from auth.schemas import UserRole
+from exports.pcm_export import export_all_artifacts
+from mastering.preview import (
+    load_render_context,
+    pick_preview_window,
+    render_with_context,
+    sanitize_overrides,
+    update_render_context_params,
+)
 from services.job_store import job_store, delete_job_by_id, schedule_delete
 from utils.config import get_settings
 from utils.log import configure_logging
@@ -54,6 +70,38 @@ def _startup() -> None:
     init_db()
 
 _ALLOWED = frozenset({".wav", ".flac"})
+
+# Serialize re-renders per job so slider spam can't stack renders.
+_render_locks: dict[str, asyncio.Lock] = {}
+
+
+def _render_lock(job_id: str) -> asyncio.Lock:
+    lock = _render_locks.get(job_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _render_locks[job_id] = lock
+    return lock
+
+
+def _load_ctx_or_409(rec) -> dict:
+    if rec.status != JobStatus.completed:
+        raise HTTPException(status_code=409, detail="Job not completed")
+    if not rec.input_path or not rec.input_path.exists():
+        raise HTTPException(status_code=409, detail="Source audio no longer available")
+    ctx = load_render_context(rec.input_path.parent)
+    if ctx is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Mastering context unavailable for this job.",
+        )
+    return ctx
+
+
+def _audio_duration(path: Path) -> float:
+    try:
+        return float(sf.info(str(path)).duration)
+    except Exception:
+        return 0.0
 
 
 def _normalize_upload_to_job_wav(src: bytes, dest_wav: Path, original_suffix: str) -> None:
@@ -163,6 +211,133 @@ async def job_result(job_id: str) -> Union[JSONResponse, JobResultResponse]:
     if not rec.master_path:
         raise HTTPException(status_code=500, detail="Missing master path")
 
+    return build_job_result(rec)
+
+
+@app.post("/api/jobs/{job_id}/preview", response_model=PreviewResponse)
+async def job_preview(
+    job_id: str,
+    payload: PreviewRequest,
+    user: Annotated[User, Depends(require_roles(UserRole.ADMIN, UserRole.EARLY_ACCESS))],
+) -> PreviewResponse:
+    """Re-render a mastered segment (or full track) with user DSP overrides.
+
+    The master is kept as a preview here — no committed exports are produced
+    until the user calls /finalize.
+    """
+    _ = user
+    rec = await job_store.get(job_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Job not found")
+    ctx = _load_ctx_or_409(rec)
+
+    try:
+        overrides = sanitize_overrides(payload.overrides)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    duration_sec = _audio_duration(rec.input_path)
+    segment_sec = max(0.0, payload.segment_sec)
+    is_full = segment_sec <= 1e-6 or segment_sec >= duration_sec - 1e-6
+
+    if is_full:
+        segment: tuple[float, float] | None = None
+        start_sec: float | None = None
+        out_name = "preview_full.wav"
+        duration_hint = duration_sec
+    else:
+        seg_len = min(segment_sec, max(10.0, duration_sec - 0.5))
+        if payload.window_start_sec is not None:
+            half = seg_len / 2.0
+            start = float(np.clip(payload.window_start_sec, half, max(half, duration_sec - half)))
+        else:
+            sectional = list(ctx.get("analysis", {}).get("sectional_analysis") or [])
+            start = pick_preview_window(sectional, duration_sec, seg_len)
+        segment = (start, seg_len)
+        start_sec = start
+        out_name = "preview.wav"
+        duration_hint = seg_len
+
+    out_path = rec.input_path.parent / out_name
+    async with _render_lock(job_id):
+        meta = await asyncio.to_thread(
+            render_with_context,
+            str(rec.input_path),
+            str(out_path),
+            ctx,
+            overrides,
+            segment,
+        )
+
+    return PreviewResponse(
+        url=f"/api/jobs/{job_id}/artifacts/{out_name}",
+        params=meta["params"],
+        lufs=meta["lufs"],
+        peak_db=meta["peak_db"],
+        duration_sec=meta["duration_sec"] or duration_hint,
+        is_full=is_full,
+        segment_start_sec=start_sec,
+    )
+
+
+@app.post("/api/jobs/{job_id}/finalize", response_model=JobResultResponse)
+async def job_finalize(
+    job_id: str,
+    payload: FinalizeRequest,
+    user: Annotated[User, Depends(require_roles(UserRole.ADMIN, UserRole.EARLY_ACCESS))],
+) -> JobResultResponse:
+    """Commit the user's DSP overrides: render the final full-track master + exports."""
+    _ = user
+    rec = await job_store.get(job_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Job not found")
+    ctx = _load_ctx_or_409(rec)
+
+    try:
+        overrides = sanitize_overrides(payload.overrides)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    job_dir = rec.input_path.parent
+    master_path = job_dir / "master.wav"
+    async with _render_lock(job_id):
+        meta = await asyncio.to_thread(
+            render_with_context,
+            str(rec.input_path),
+            str(master_path),
+            ctx,
+            overrides,
+            None,
+        )
+        update_render_context_params(job_dir, meta["params"])
+
+        # Regenerate platform exports + streaming simulations from the new master.
+        is_rollout = rec.user_role == UserRole.ROLLOUT.value
+        exports: list[dict[str, str]] = []
+        notes: list[str] = []
+        if not is_rollout:
+            exports_list, notes = await asyncio.to_thread(
+                export_all_artifacts,
+                master_path,
+                job_dir / "exports",
+                job_dir / "streaming_sim",
+            )
+            exports_public: list[dict[str, str]] = []
+            for item in exports_list:
+                p = Path(item["path"]).resolve()
+                rel = p.relative_to(job_dir.resolve()).as_posix()
+                exports_public.append({**item, "download_url": f"/api/jobs/{job_id}/artifacts/{rel}"})
+            exports = exports_public
+
+    await job_store.update(
+        job_id,
+        master_path=master_path,
+        exports=exports,
+        streaming_notes=notes,
+        message="Done",
+    )
+    rec = await job_store.get(job_id)
+    assert rec is not None
     return build_job_result(rec)
 
 
