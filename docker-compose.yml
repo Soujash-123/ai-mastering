@@ -7,7 +7,7 @@ services:
       - path: ./backend/.env
         required: false
     environment:
-      - OPENAI_MASTERING_MODEL=${OPENAI_MASTERING_MODEL:-gpt-5.1}
+      - GPT_OSS_MASTERING_MODEL=${GPT_OSS_MASTERING_MODEL:-openai/gpt-oss-20b}
       - AI_MASTERING_DATA_DIR=${AI_MASTERING_DATA_DIR:-/app/backend/data}
       - DATABASE_URL=${DATABASE_URL:-sqlite:////app/backend/data/kord_auth.db}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-me-use-a-long-random-secret-in-production}
