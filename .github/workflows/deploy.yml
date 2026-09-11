@@ -19,8 +19,8 @@ jobs:
       EC2_USER: ${{ secrets.EC2_USER }}
       EC2_APP_DIR: ${{ secrets.EC2_APP_DIR }}
       NEXT_PUBLIC_API_BASE: ${{ secrets.NEXT_PUBLIC_API_BASE }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      OPENAI_MASTERING_MODEL: ${{ secrets.OPENAI_MASTERING_MODEL }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GPT_OSS_MASTERING_MODEL: ${{ secrets.GPT_OSS_MASTERING_MODEL }}
       AI_MASTERING_DATA_DIR: ${{ secrets.AI_MASTERING_DATA_DIR }}
       NEXT_PUBLIC_EMAILJS_SERVICE_ID: ${{ secrets.NEXT_PUBLIC_EMAILJS_SERVICE_ID }}
       NEXT_PUBLIC_EMAILJS_TEMPLATE_ID: ${{ secrets.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID }}
@@ -35,8 +35,8 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          if [ -z "${EC2_HOST}" ] || [ -z "${EC2_USER}" ] || [ -z "${EC2_APP_DIR}" ] || [ -z "${OPENAI_API_KEY}" ] || [ -z "${NEXT_PUBLIC_API_BASE}" ]; then
-            echo "Missing one or more required secrets: EC2_HOST, EC2_USER, EC2_APP_DIR, OPENAI_API_KEY, NEXT_PUBLIC_API_BASE"
+          if [ -z "${EC2_HOST}" ] || [ -z "${EC2_USER}" ] || [ -z "${EC2_APP_DIR}" ] || [ -z "${GROQ_API_KEY}" ] || [ -z "${NEXT_PUBLIC_API_BASE}" ]; then
+            echo "Missing one or more required secrets: EC2_HOST, EC2_USER, EC2_APP_DIR, GROQ_API_KEY, NEXT_PUBLIC_API_BASE"
             exit 1
           fi
 
@@ -73,8 +73,8 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          backend_env_b64="$(printf 'OPENAI_API_KEY=%s\nOPENAI_MASTERING_MODEL=%s\nAI_MASTERING_DATA_DIR=%s\nJWT_SECRET_KEY=%s\n' "${OPENAI_API_KEY}" "${OPENAI_MASTERING_MODEL:-gpt-5.1}" "${AI_MASTERING_DATA_DIR:-/app/backend/data}" "${JWT_SECRET_KEY}" | base64 -w0)"
-          root_env_b64="$(printf 'OPENAI_API_KEY=%s\nOPENAI_MASTERING_MODEL=%s\nAI_MASTERING_DATA_DIR=%s\nNEXT_PUBLIC_API_BASE=%s\nNGINX_CONF=%s\nNEXT_PUBLIC_EMAILJS_SERVICE_ID=%s\nNEXT_PUBLIC_EMAILJS_TEMPLATE_ID=%s\nNEXT_PUBLIC_EMAILJS_PUBLIC_KEY=%s\n' "${OPENAI_API_KEY}" "${OPENAI_MASTERING_MODEL:-gpt-5.1}" "${AI_MASTERING_DATA_DIR:-/app/backend/data}" "${NEXT_PUBLIC_API_BASE}" "default.conf" "${NEXT_PUBLIC_EMAILJS_SERVICE_ID}" "${NEXT_PUBLIC_EMAILJS_TEMPLATE_ID}" "${NEXT_PUBLIC_EMAILJS_PUBLIC_KEY}" | base64 -w0)"
+          backend_env_b64="$(printf 'GROQ_API_KEY=%s\nGPT_OSS_MASTERING_MODEL=%s\nAI_MASTERING_DATA_DIR=%s\nJWT_SECRET_KEY=%s\n' "${GROQ_API_KEY}" "${GPT_OSS_MASTERING_MODEL:-openai/gpt-oss-20b}" "${AI_MASTERING_DATA_DIR:-/app/backend/data}" "${JWT_SECRET_KEY}" | base64 -w0)"
+          root_env_b64="$(printf 'GROQ_API_KEY=%s\nGPT_OSS_MASTERING_MODEL=%s\nAI_MASTERING_DATA_DIR=%s\nNEXT_PUBLIC_API_BASE=%s\nNGINX_CONF=%s\nNEXT_PUBLIC_EMAILJS_SERVICE_ID=%s\nNEXT_PUBLIC_EMAILJS_TEMPLATE_ID=%s\nNEXT_PUBLIC_EMAILJS_PUBLIC_KEY=%s\n' "${GROQ_API_KEY}" "${GPT_OSS_MASTERING_MODEL:-openai/gpt-oss-20b}" "${AI_MASTERING_DATA_DIR:-/app/backend/data}" "${NEXT_PUBLIC_API_BASE}" "default.conf" "${NEXT_PUBLIC_EMAILJS_SERVICE_ID}" "${NEXT_PUBLIC_EMAILJS_TEMPLATE_ID}" "${NEXT_PUBLIC_EMAILJS_PUBLIC_KEY}" | base64 -w0)"
 
           ssh "${EC2_USER}@${EC2_HOST}" "
             set -Eeuo pipefail
