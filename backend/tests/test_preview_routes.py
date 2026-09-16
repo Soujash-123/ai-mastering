@@ -81,7 +81,8 @@ def test_preview_renders_segment(client, early_access_headers, seed_job):
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["url"].endswith("/artifacts/preview.wav")
+    assert body["url"].endswith("/artifacts/preview.flac")
+    assert body["download_url"].endswith("/artifacts/preview.wav")
     assert body["duration_sec"] > 0
     assert body["is_full"] is False
     assert body["params"]["low_shelf_db"] == 2.0
@@ -97,7 +98,8 @@ def test_preview_renders_full_track(client, early_access_headers, seed_job):
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["url"].endswith("/artifacts/preview_full.wav")
+    assert body["url"].endswith("/artifacts/preview_full.flac")
+    assert body["download_url"].endswith("/artifacts/preview_full.wav")
     assert body["is_full"] is True
 
 
@@ -122,10 +124,14 @@ def test_preview_artifact_available(client, early_access_headers, seed_job):
         headers=early_access_headers,
     )
     assert resp.status_code == 200
-    url = resp.json()["url"]
-    art = client.get(url)
-    assert art.status_code == 200
-    assert art.headers["content-type"] == "audio/wav"
+    body = resp.json()
+    # Playback serves the compact FLAC; download serves the canonical WAV.
+    flac = client.get(body["url"])
+    assert flac.status_code == 200
+    assert flac.headers["content-type"] == "audio/flac"
+    wav = client.get(body["download_url"])
+    assert wav.status_code == 200
+    assert wav.headers["content-type"] == "audio/wav"
 
 
 def test_finalize_requires_ea(client, rollout_headers, seed_job):

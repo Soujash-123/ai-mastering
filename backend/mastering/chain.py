@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import gc
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -136,3 +137,13 @@ def master_file(
     gc.collect()
     with memory_step("mastering.write_output"):
         sf.write(output_path, out.T, sr, subtype="PCM_24")
+        # Compact lossless playback copy (FLAC ≈ 3x smaller than WAV) so the
+        # deployed instance can stream audio smoothly without saturating egress.
+        flac_path = str(Path(output_path).with_suffix(".flac"))
+        try:
+            sf.write(flac_path, out.T, sr, format="FLAC")
+        except Exception:  # noqa: BLE001 - FLAC is best-effort; WAV remains canonical
+            try:
+                Path(flac_path).unlink(missing_ok=True)
+            except Exception:  # noqa: BLE001
+                pass

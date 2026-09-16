@@ -20,7 +20,7 @@ export function JobPreviewContent({ jobId, data }: Props) {
     () => (data.analysis?.target_platform as string) || "Spotify",
   );
   const beforeUrl = apiUrl(data.input_url);
-  const afterUrl = apiUrl(data.master_wav_url);
+  const afterUrl = apiUrl(data.master_playback_url ?? data.master_wav_url);
   const report = data.report ?? {};
   const bullets = Array.isArray(report.bullets) ? report.bullets : [];
 

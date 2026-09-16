@@ -77,7 +77,8 @@ def test_job_result_completed(client, seed_job):
     assert resp.status_code == 200
     body = resp.json()
     assert body["job_id"] == rec.job_id
-    assert body["master_wav_url"].endswith("/files/master")
+    assert body["master_wav_url"].endswith("/files/master_wav")
+    assert body["master_playback_url"].endswith("/files/master")
 
 
 def test_completed_result_restores_report_and_intents_from_disk(client, sample_wav):
@@ -126,6 +127,16 @@ def test_completed_result_restores_report_and_intents_from_disk(client, sample_w
     assert body["raw_intent"] == {"raw": "yes"}
 
 
+def test_result_waveform_peaks_from_temporal(client, seed_job):
+    rec = seed_job(status=JobStatus.completed, user_role=UserRole.ADMIN.value)
+    rec.analysis = {"temporal_analysis": [{"rms": 0.1}, {"rms": 0.5}, {"rms": 0.2}]}
+    resp = client.get(f"/api/jobs/{rec.job_id}/result")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["waveform_peaks"]) == 100
+    assert max(body["waveform_peaks"]) == 1.0
+
+
 def test_job_artifact_path_traversal_blocked(client, seed_job):
     rec = seed_job()
     # A traversal attempt must never return an out-of-bounds file (200).
@@ -162,6 +173,46 @@ def test_job_file_not_found_job(client):
 def test_job_file_master_success(client, seed_job):
     rec = seed_job(with_master=True)
     resp = client.get(f"/api/jobs/{rec.job_id}/files/master")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "audio/wav"
+
+
+def test_job_file_master_prefers_flac(client, seed_job):
+    import io
+
+    import numpy as np
+    import soundfile as sf
+
+    rec = seed_job(with_master=True)
+    n = int(1.0 * 44100)
+    y = np.sin(2 * np.pi * 440 * (np.arange(n) / 44100)).astype("float32")
+    buf = io.BytesIO()
+    sf.write(buf, y, 44100, format="FLAC")
+    buf.seek(0)
+    flac = rec.master_path.with_suffix(".flac")
+    flac.write_bytes(buf.read())
+
+    resp = client.get(f"/api/jobs/{rec.job_id}/files/master")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "audio/flac"
+
+
+def test_job_file_master_wav_always_wav(client, seed_job):
+    import io
+
+    import numpy as np
+    import soundfile as sf
+
+    rec = seed_job(with_master=True)
+    n = int(1.0 * 44100)
+    y = np.sin(2 * np.pi * 440 * (np.arange(n) / 44100)).astype("float32")
+    buf = io.BytesIO()
+    sf.write(buf, y, 44100, format="FLAC")
+    buf.seek(0)
+    flac = rec.master_path.with_suffix(".flac")
+    flac.write_bytes(buf.read())
+
+    resp = client.get(f"/api/jobs/{rec.job_id}/files/master_wav")
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "audio/wav"
 

@@ -191,6 +191,19 @@ def render_with_context(
     sf.write(str(tmp_path), out.T, sr, subtype="PCM_24")
     os.replace(str(tmp_path), str(output_path))
 
+    # Compact lossless playback copy (FLAC ≈ 3x smaller than WAV). Best-effort:
+    # if FLAC fails, playback falls back to the WAV sibling.
+    flac_path = output_path.with_suffix(".flac")
+    try:
+        tmp_flac = flac_path.parent / f".{flac_path.stem}.{os.getpid()}.tmp.flac"
+        sf.write(str(tmp_flac), out.T, sr, format="FLAC")
+        os.replace(str(tmp_flac), str(flac_path))
+    except Exception:  # noqa: BLE001
+        try:
+            flac_path.unlink(missing_ok=True)
+        except Exception:  # noqa: BLE001
+            pass
+
     lufs, peak_db = _measure(output_path, sr)
     return {
         "params": dataclasses.asdict(params),

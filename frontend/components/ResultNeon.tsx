@@ -62,8 +62,9 @@ function NeonIntensityBars({ intent }: { intent: Record<string, unknown> | null 
 export function ResultNeon({
   jobId, data, urls, tierCfg, masterBars, isPlaying, showComparison,
   currentTime, duration, copiedId, onCopyId, onTogglePlay, onToggleComparison,
-  onSeek, beforeRef, masterAudioRef, onAudioEnded, onAudioTimeUpdate, onAudioLoadedMetadata,
-  drawWaveform, downloadUrl, liveTargetLufs, controlPanel, isFinalized = true
+  onSeek, beforeRef, masterAudioRef, onAudioEnded, onAudioError, onAudioTimeUpdate, onAudioLoadedMetadata,
+  drawWaveform, downloadUrl, liveTargetLufs, controlPanel, isFinalized = true,
+  drawPeaks, waveformPeaks
 }: ResultProps) {
   const analysis = data.analysis as Record<string, unknown>;
   const safeIntent = data.safe_intent as Record<string, unknown>;
@@ -219,7 +220,9 @@ export function ResultNeon({
               ref={masterAudioRef}
               src={urls.out}
               className="hidden"
+              preload="metadata"
               onEnded={onAudioEnded}
+              onError={onAudioError}
               onTimeUpdate={onAudioTimeUpdate}
               onLoadedMetadata={onAudioLoadedMetadata}
             />
@@ -241,7 +244,7 @@ export function ResultNeon({
                 </div>
                 <div className="p-4 rounded-xl border border-white/5 bg-black/50">
                   <canvas ref={beforeRef} width={800} height={60} className="w-full h-[60px] opacity-60" />
-                  <audio className="w-full mt-4 h-8" controls src={urls.in} />
+                  <audio className="w-full mt-4 h-8" controls preload="none" src={urls.in} />
                 </div>
               </div>
               <div>
@@ -251,10 +254,10 @@ export function ResultNeon({
                 </div>
                 <div className="p-4 rounded-xl border border-cyan-400/20 bg-cyan-400/5 shadow-[inset_0_0_20px_rgba(34,211,238,0.05)]">
                   <canvas 
-                    ref={(el) => { if (el && urls) void drawWaveform(el, urls.out, "neon"); }} 
+                    ref={(el) => { if (el && urls) { if (drawPeaks && waveformPeaks && waveformPeaks.length > 0) drawPeaks(el, waveformPeaks, "neon"); else void drawWaveform(el, urls.out, "neon"); } }} 
                     width={800} height={60} className="w-full h-[60px]" 
                   />
-                  <audio className="w-full mt-4 h-8" controls src={urls.out} />
+                  <audio className="w-full mt-4 h-8" controls preload="none" src={urls.out} />
                 </div>
               </div>
             </div>

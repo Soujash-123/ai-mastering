@@ -54,6 +54,19 @@ async function drawWaveform(canvas: HTMLCanvasElement, audioUrl: string, color: 
   }
 }
 
+function drawPeaksFromData(canvas: HTMLCanvasElement, peaks: number[], color: string) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx || peaks.length === 0) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const mid = canvas.height / 2;
+  const segW = canvas.width / peaks.length;
+  for (let i = 0; i < peaks.length; i++) {
+    const amp = Math.max(0.02, Math.min(1, peaks[i] ?? 0));
+    ctx.fillStyle = color;
+    ctx.fillRect(i * segW, mid - amp * mid, Math.max(1, segW - 0.5), amp * mid * 2);
+  }
+}
+
 export default function ResultPage() {
   const params = useParams<{ jobId: string }>();
   const router = useRouter();
@@ -90,6 +103,7 @@ export default function ResultPage() {
   const dirtyRef = useRef(false);
   const seqRef = useRef(0);
   const currentTimeRef = useRef(0);
+  const triedWavFallbackRef = useRef(false);
 
   const canDsp = fullAccess && !!data?.dsp_params;
 
@@ -101,7 +115,10 @@ export default function ResultPage() {
 
   const urls = useMemo(() => {
     if (!data) return null;
-    return { in: apiUrl(data.input_url), out: audioUrl ?? apiUrl(data.master_wav_url) };
+    return {
+      in: apiUrl(data.input_url),
+      out: audioUrl ?? apiUrl(data.master_playback_url ?? data.master_wav_url),
+    };
   }, [data, audioUrl]);
 
   useEffect(() => {
@@ -130,7 +147,7 @@ export default function ResultPage() {
   useEffect(() => {
     if (!data) return;
     setDspParams(extractBaseParams(data));
-    setAudioUrl(`${apiUrl(data.master_wav_url)}?v=${Date.now()}`);
+    setAudioUrl(`${apiUrl(data.master_playback_url ?? data.master_wav_url)}?v=${Date.now()}`);
     setDownloadUrl(`${apiUrl(data.master_wav_url)}?v=${Date.now()}`);
     setDspReady(true);
     setFinalized(true);
@@ -156,7 +173,7 @@ export default function ResultPage() {
         if (seqRef.current !== seq) return;
         const url = `${resp.url}?v=${Date.now()}`;
         setAudioUrl(url);
-        setDownloadUrl(url);
+        setDownloadUrl(`${resp.download_url ?? resp.url}?v=${Date.now()}`);
         setPreviewStats({ lufs: resp.lufs, peak_db: resp.peak_db });
         setFinalized(false);
         setIsPlaying(false);
@@ -201,6 +218,11 @@ export default function ResultPage() {
 
   useEffect(() => {
     if (!urls) return;
+    const peaks = data?.waveform_peaks;
+    if (peaks && peaks.length > 0) {
+      setMasterBars(peaks.map((v) => Math.min(1, Math.max(0.02, Number(v) || 0))));
+      return;
+    }
     let cancelled = false;
     void (async () => {
       try {
@@ -230,7 +252,7 @@ export default function ResultPage() {
       } catch { /* non-critical */ }
     })();
     return () => { cancelled = true; };
-  }, [urls]);
+  }, [urls, data]);
 
   // Reload the audio element whenever the (live) preview source changes.
   useEffect(() => {
@@ -239,9 +261,15 @@ export default function ResultPage() {
 
   // Draw "before" waveform when comparison is shown
   useEffect(() => {
-    if (!showComparison || !urls || !beforeRef.current) return;
+    if (!showComparison || !beforeRef.current) return;
+    const peaks = data?.waveform_peaks;
+    if (peaks && peaks.length > 0) {
+      drawPeaksFromData(beforeRef.current, peaks, "rgba(255,75,75,0.72)");
+      return;
+    }
+    if (!urls) return;
     void drawWaveform(beforeRef.current, urls.in, "rgba(255,75,75,0.72)");
-  }, [showComparison, urls]);
+  }, [showComparison, urls, data]);
 
   const onCopyId = () => {
     void navigator.clipboard.writeText(jobId);
@@ -270,6 +298,12 @@ export default function ResultPage() {
     if (masterAudioRef.current) masterAudioRef.current.currentTime = t;
   };
 
+  const onAudioError = useCallback(() => {
+    if (!data || triedWavFallbackRef.current) return;
+    triedWavFallbackRef.current = true;
+    setAudioUrl(`${apiUrl(data.master_wav_url)}?v=${Date.now()}`);
+  }, [data]);
+
   const handleParamChange = useCallback((key: string, value: number) => {
     dirtyRef.current = true;
     setDspParams((prev) => ({ ...prev, [key]: value }));
@@ -292,9 +326,10 @@ export default function ResultPage() {
       if (updated) {
         setData(updated);
         setFinalized(true);
-        const master = `${apiUrl(updated.master_wav_url)}?v=${Date.now()}`;
-        setAudioUrl(master);
-        setDownloadUrl(master);
+        const playback = `${apiUrl(updated.master_playback_url ?? updated.master_wav_url)}?v=${Date.now()}`;
+        const wav = `${apiUrl(updated.master_wav_url)}?v=${Date.now()}`;
+        setAudioUrl(playback);
+        setDownloadUrl(wav);
         setPreviewStats(null);
         setIsPlaying(false);
         setCurrentTime(0);
@@ -355,9 +390,12 @@ export default function ResultPage() {
         beforeRef={beforeRef as React.RefObject<HTMLCanvasElement>}
         masterAudioRef={masterAudioRef as React.RefObject<HTMLAudioElement>}
         onAudioEnded={() => { setIsPlaying(false); setCurrentTime(0); }}
+        onAudioError={onAudioError}
         onAudioTimeUpdate={(e) => { setCurrentTime(e.currentTarget.currentTime); currentTimeRef.current = e.currentTarget.currentTime; }}
         onAudioLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
         drawWaveform={drawWaveform}
+        drawPeaks={drawPeaksFromData}
+        waveformPeaks={data.waveform_peaks ?? []}
         downloadUrl={downloadUrl}
         liveTargetLufs={liveTargetLufs}
         isFinalized={finalized}

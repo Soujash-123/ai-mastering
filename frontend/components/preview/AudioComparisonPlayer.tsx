@@ -57,6 +57,7 @@ export function AudioComparisonPlayer({ beforeUrl, afterUrl, durationSec }: Prop
         <audio
           ref={audioRef}
           controls
+          preload="none"
           className="w-full rounded-3xl border border-white/10 bg-ink-900 p-3"
           src={src}
         />

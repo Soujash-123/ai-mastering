@@ -47,9 +47,12 @@ export interface ResultProps {
   beforeRef: React.RefObject<HTMLCanvasElement>;
   masterAudioRef: React.RefObject<HTMLAudioElement>;
   onAudioEnded: () => void;
+  onAudioError?: () => void;
   onAudioTimeUpdate: (e: React.SyntheticEvent<HTMLAudioElement>) => void;
   onAudioLoadedMetadata: (e: React.SyntheticEvent<HTMLAudioElement>) => void;
   drawWaveform: (canvas: HTMLCanvasElement, url: string, color: string) => void;
+  drawPeaks?: (canvas: HTMLCanvasElement, peaks: number[], color: string) => void;
+  waveformPeaks?: number[];
   downloadUrl?: string | null;
   liveTargetLufs?: string | null;
   controlPanel?: React.ReactNode;

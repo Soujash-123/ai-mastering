@@ -63,6 +63,8 @@ export type JobResult = {
   };
   input_url: string;
   master_wav_url: string;
+  master_playback_url?: string;
+  waveform_peaks?: number[];
   exports: { profile: string; format: string; path: string; download_url: string }[];
   streaming_notes: string[];
   memory_profile?: MemoryStepReport[];
@@ -102,6 +104,7 @@ export async function fetchResult(jobId: string) {
 
 export type PreviewResponse = {
   url: string;
+  download_url?: string;
   params: Record<string, number>;
   lufs: number | null;
   peak_db: number | null;

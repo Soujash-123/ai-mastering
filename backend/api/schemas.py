@@ -53,6 +53,8 @@ class JobResultResponse(BaseModel):
     report: dict[str, Any]
     input_url: str
     master_wav_url: str
+    master_playback_url: str
+    waveform_peaks: list[float] = Field(default_factory=list)
     exports: list[ExportArtifact] = Field(default_factory=list)
     streaming_notes: list[str] = Field(default_factory=list)
     memory_profile: list[MemoryStepReport] = Field(default_factory=list)
@@ -69,6 +71,7 @@ class PreviewRequest(BaseModel):
 
 class PreviewResponse(BaseModel):
     url: str
+    download_url: str
     params: dict[str, float]
     lufs: Optional[float] = None
     peak_db: Optional[float] = None

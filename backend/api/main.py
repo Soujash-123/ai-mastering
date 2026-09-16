@@ -270,7 +270,8 @@ async def job_preview(
         )
 
     return PreviewResponse(
-        url=f"/api/jobs/{job_id}/artifacts/{out_name}",
+        url=f"/api/jobs/{job_id}/artifacts/{Path(out_name).with_suffix('.flac').name}",
+        download_url=f"/api/jobs/{job_id}/artifacts/{out_name}",
         params=meta["params"],
         lufs=meta["lufs"],
         peak_db=meta["peak_db"],
@@ -368,6 +369,16 @@ async def job_file(job_id: str, kind: str) -> FileResponse:
         path = rec.input_path
         media = "audio/wav"
     elif kind == "master":
+        # Playback-optimized: prefer compact lossless FLAC (≈ 3x smaller than WAV).
+        flac = rec.master_path.with_suffix(".flac") if rec.master_path else None
+        if flac and flac.exists():
+            path = flac
+            media = "audio/flac"
+        else:
+            path = rec.master_path
+            media = "audio/wav"
+    elif kind == "master_wav":
+        # Canonical 24-bit WAV for download (always WAV regardless of FLAC availability).
         path = rec.master_path
         media = "audio/wav"
     else:
