@@ -59,6 +59,10 @@ class JobResultResponse(BaseModel):
     streaming_notes: list[str] = Field(default_factory=list)
     memory_profile: list[MemoryStepReport] = Field(default_factory=list)
     dsp_params: Optional[dict[str, float]] = None
+    # True while a background /finalize render is in flight; clients poll until it
+    # flips to False. finalize_error carries the failure reason (master stays intact).
+    finalizing: bool = False
+    finalize_error: Optional[str] = None
 
 
 class PreviewRequest(BaseModel):

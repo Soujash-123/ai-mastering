@@ -33,6 +33,10 @@ class JobRecord:
     ephemeral: bool = False
     user_id: Optional[int] = None
     user_role: Optional[str] = None
+    # Background /finalize state. Persisted so a reload while a finalize is in
+    # flight can resume polling; reset on disk-load (work does not survive restarts).
+    finalizing: bool = False
+    finalize_error: Optional[str] = None
 
 
 class JobStore:
@@ -85,6 +89,12 @@ class JobStore:
                     with open(possible, "r", encoding="utf-8") as fh:
                         data = json.load(fh)
                     rec = _dict_to_record(data)
+                    # A persisted `finalizing` flag is stale: background renders do
+                    # not survive a process restart. Reset so the job isn't stuck
+                    # "finalizing" forever (the client will simply see it as done).
+                    if rec.finalizing:
+                        rec.finalizing = False
+                        rec.finalize_error = None
                     self._jobs[job_id] = rec
                     _enforce_memory_cap(self)
                     return rec
@@ -194,6 +204,8 @@ def _record_to_dict(rec: JobRecord) -> dict:
         "error": rec.error,
         "user_id": rec.user_id,
         "user_role": rec.user_role,
+        "finalizing": rec.finalizing,
+        "finalize_error": rec.finalize_error,
     }
 
 
@@ -219,6 +231,8 @@ def _dict_to_record(d: dict) -> JobRecord:
         error=d.get("error"),
         user_id=d.get("user_id"),
         user_role=d.get("user_role"),
+        finalizing=bool(d.get("finalizing", False)),
+        finalize_error=d.get("finalize_error"),
     )
     return rec
 

@@ -17,7 +17,7 @@ import numpy as np
 import pyloudnorm as pyln
 import soundfile as sf
 
-from mastering.chain import render_master
+from mastering.chain import playback_wav_path, render_master
 from mastering.dsp_params import SECTION_CONTROL_HZ, SafeDSPParams
 from mastering.section_automation import build_mastering_plan
 
@@ -191,18 +191,11 @@ def render_with_context(
     sf.write(str(tmp_path), out.T, sr, subtype="PCM_24")
     os.replace(str(tmp_path), str(output_path))
 
-    # Compact lossless playback copy (FLAC ≈ 3x smaller than WAV). Best-effort:
-    # if FLAC fails, playback falls back to the WAV sibling.
-    flac_path = output_path.with_suffix(".flac")
-    try:
-        tmp_flac = flac_path.parent / f".{flac_path.stem}.{os.getpid()}.tmp.flac"
-        sf.write(str(tmp_flac), out.T, sr, format="FLAC")
-        os.replace(str(tmp_flac), str(flac_path))
-    except Exception:  # noqa: BLE001
-        try:
-            flac_path.unlink(missing_ok=True)
-        except Exception:  # noqa: BLE001
-            pass
+    # Browser-only WAV. The canonical preview/download file remains 24-bit.
+    playback_path = playback_wav_path(output_path)
+    tmp_playback = playback_path.parent / f".{playback_path.stem}.{os.getpid()}.tmp.wav"
+    sf.write(str(tmp_playback), out.T, sr, subtype="PCM_16")
+    os.replace(str(tmp_playback), str(playback_path))
 
     lufs, peak_db = _measure(output_path, sr)
     return {

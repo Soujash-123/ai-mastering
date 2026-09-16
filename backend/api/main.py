@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import sys
 from pathlib import Path
 from typing import Annotated, Union
@@ -35,6 +36,7 @@ from auth.permissions import duration_limit_message, max_upload_duration_sec
 from auth.router import router as auth_router
 from auth.schemas import UserRole
 from exports.pcm_export import export_all_artifacts
+from mastering.chain import playback_wav_path
 from mastering.preview import (
     load_render_context,
     pick_preview_window,
@@ -48,6 +50,8 @@ from utils.log import configure_logging
 from workers.processor import process_job
 
 configure_logging()
+
+LOGGER = logging.getLogger("api.main")
 
 app = FastAPI(title="AI Mastering API", version="0.1.0")
 settings = get_settings()
@@ -270,7 +274,7 @@ async def job_preview(
         )
 
     return PreviewResponse(
-        url=f"/api/jobs/{job_id}/artifacts/{Path(out_name).with_suffix('.flac').name}",
+        url=f"/api/jobs/{job_id}/artifacts/{playback_wav_path(out_name).name}",
         download_url=f"/api/jobs/{job_id}/artifacts/{out_name}",
         params=meta["params"],
         lufs=meta["lufs"],
@@ -285,61 +289,96 @@ async def job_preview(
 async def job_finalize(
     job_id: str,
     payload: FinalizeRequest,
+    background_tasks: BackgroundTasks,
     user: Annotated[User, Depends(require_roles(UserRole.ADMIN, UserRole.EARLY_ACCESS))],
 ) -> JobResultResponse:
-    """Commit the user's DSP overrides: render the final full-track master + exports."""
+    """Commit the user's DSP overrides: render the final full-track master + exports.
+
+    The render runs as a background task after this response is sent, so the
+    request returns immediately instead of pegging the worker mid-request. The
+    payload's `finalizing` flag stays true while it runs; clients poll /result
+    until it flips to false (the master + exports are updated only then).
+    """
     _ = user
     rec = await job_store.get(job_id)
     if not rec:
         raise HTTPException(status_code=404, detail="Job not found")
-    ctx = _load_ctx_or_409(rec)
+    _load_ctx_or_409(rec)
 
     try:
         overrides = sanitize_overrides(payload.overrides)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    job_dir = rec.input_path.parent
-    master_path = job_dir / "master.wav"
-    async with _render_lock(job_id):
-        meta = await asyncio.to_thread(
-            render_with_context,
-            str(rec.input_path),
-            str(master_path),
-            ctx,
-            overrides,
-            None,
+    if not rec.finalizing:
+        await job_store.update(
+            job_id,
+            finalizing=True,
+            finalize_error=None,
+            message="Finalizing master…",
         )
-        update_render_context_params(job_dir, meta["params"])
+        background_tasks.add_task(_run_finalize, job_id, overrides)
 
-        # Regenerate platform exports + streaming simulations from the new master.
-        is_rollout = rec.user_role == UserRole.ROLLOUT.value
-        exports: list[dict[str, str]] = []
-        notes: list[str] = []
-        if not is_rollout:
-            exports_list, notes = await asyncio.to_thread(
-                export_all_artifacts,
-                master_path,
-                job_dir / "exports",
-                job_dir / "streaming_sim",
-            )
-            exports_public: list[dict[str, str]] = []
-            for item in exports_list:
-                p = Path(item["path"]).resolve()
-                rel = p.relative_to(job_dir.resolve()).as_posix()
-                exports_public.append({**item, "download_url": f"/api/jobs/{job_id}/artifacts/{rel}"})
-            exports = exports_public
-
-    await job_store.update(
-        job_id,
-        master_path=master_path,
-        exports=exports,
-        streaming_notes=notes,
-        message="Done",
-    )
-    rec = await job_store.get(job_id)
-    assert rec is not None
     return build_job_result(rec)
+
+
+async def _run_finalize(job_id: str, overrides: dict[str, float]) -> None:
+    """Background re-render of the full master + exports for a finalized job.
+
+    Runs after the /finalize response is sent so a single-worker t3.micro can
+    keep serving audio/polls while the render churns. On failure the previous
+    master is left untouched and `finalize_error` is surfaced to the client.
+    """
+    try:
+        rec = await job_store.get(job_id)
+        if not rec:
+            return
+        ctx = _load_ctx_or_409(rec)
+        job_dir = rec.input_path.parent
+        master_path = job_dir / "master.wav"
+
+        async with _render_lock(job_id):
+            meta = await asyncio.to_thread(
+                render_with_context,
+                str(rec.input_path),
+                str(master_path),
+                ctx,
+                overrides,
+                None,
+            )
+            update_render_context_params(job_dir, meta["params"])
+
+            # Regenerate platform exports + streaming simulations from the new master.
+            is_rollout = rec.user_role == UserRole.ROLLOUT.value
+            exports: list[dict[str, str]] = []
+            notes: list[str] = []
+            if not is_rollout:
+                exports_list, notes = await asyncio.to_thread(
+                    export_all_artifacts,
+                    master_path,
+                    job_dir / "exports",
+                    job_dir / "streaming_sim",
+                )
+                for item in exports_list:
+                    p = Path(item["path"]).resolve()
+                    rel = p.relative_to(job_dir.resolve()).as_posix()
+                    exports.append({**item, "download_url": f"/api/jobs/{job_id}/artifacts/{rel}"})
+
+        await job_store.update(
+            job_id,
+            master_path=master_path,
+            exports=exports,
+            streaming_notes=notes,
+            message="Done",
+            finalizing=False,
+            finalize_error=None,
+        )
+    except Exception as exc:  # noqa: BLE001 - keep the old master + report the failure
+        LOGGER.exception("Job %s finalize failed", job_id)
+        try:
+            await job_store.update(job_id, finalizing=False, finalize_error=str(exc))
+        except Exception:  # noqa: BLE001
+            pass
 
 
 @app.get("/api/jobs/{job_id}/artifacts/{file_path:path}")
@@ -369,16 +408,15 @@ async def job_file(job_id: str, kind: str) -> FileResponse:
         path = rec.input_path
         media = "audio/wav"
     elif kind == "master":
-        # Playback-optimized: prefer compact lossless FLAC (≈ 3x smaller than WAV).
-        flac = rec.master_path.with_suffix(".flac") if rec.master_path else None
-        if flac and flac.exists():
-            path = flac
-            media = "audio/flac"
+        # Browser playback copy (PCM_16 WAV). Canonical download is master_wav.
+        playback = playback_wav_path(rec.master_path) if rec.master_path else None
+        if playback and playback.exists():
+            path = playback
         else:
             path = rec.master_path
-            media = "audio/wav"
+        media = "audio/wav"
     elif kind == "master_wav":
-        # Canonical 24-bit WAV for download (always WAV regardless of FLAC availability).
+        # Canonical 24-bit WAV for download.
         path = rec.master_path
         media = "audio/wav"
     else:

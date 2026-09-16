@@ -25,6 +25,12 @@ from mastering.transients import transient_reconstruct
 from utils.memory import memory_step
 
 
+def playback_wav_path(output_path: str | Path) -> Path:
+    """Browser playback sibling for a canonical WAV master."""
+    path = Path(output_path)
+    return path.with_name(f"{path.stem}_playback.wav")
+
+
 def _to_stereo(y: np.ndarray) -> np.ndarray:
     if y.ndim == 1:
         return np.stack([y, y], axis=0).astype(np.float32)
@@ -137,13 +143,6 @@ def master_file(
     gc.collect()
     with memory_step("mastering.write_output"):
         sf.write(output_path, out.T, sr, subtype="PCM_24")
-        # Compact lossless playback copy (FLAC ≈ 3x smaller than WAV) so the
-        # deployed instance can stream audio smoothly without saturating egress.
-        flac_path = str(Path(output_path).with_suffix(".flac"))
-        try:
-            sf.write(flac_path, out.T, sr, format="FLAC")
-        except Exception:  # noqa: BLE001 - FLAC is best-effort; WAV remains canonical
-            try:
-                Path(flac_path).unlink(missing_ok=True)
-            except Exception:  # noqa: BLE001
-                pass
+        # Browser-only WAV. The canonical downloadable master remains 24-bit.
+        playback_path = playback_wav_path(output_path)
+        sf.write(str(playback_path), out.T, sr, subtype="PCM_16")

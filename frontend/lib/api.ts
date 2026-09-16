@@ -69,6 +69,8 @@ export type JobResult = {
   streaming_notes: string[];
   memory_profile?: MemoryStepReport[];
   dsp_params?: Record<string, number> | null;
+  finalizing?: boolean;
+  finalize_error?: string | null;
 };
 
 export async function createJob(file: File, targetPlatform: string, userIntent: string, ephemeral = true) {

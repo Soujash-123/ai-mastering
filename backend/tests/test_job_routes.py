@@ -137,6 +137,17 @@ def test_result_waveform_peaks_from_temporal(client, seed_job):
     assert max(body["waveform_peaks"]) == 1.0
 
 
+def test_rollout_result_keeps_waveform_peaks(client, seed_job):
+    rec = seed_job(status=JobStatus.completed, user_role=UserRole.ROLLOUT.value)
+    rec.analysis = {"temporal_analysis": [{"rms": 0.1}, {"rms": 0.5}, {"rms": 0.2}]}
+    resp = client.get(f"/api/jobs/{rec.job_id}/result")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["analysis"] == {}
+    assert len(body["waveform_peaks"]) == 100
+    assert max(body["waveform_peaks"]) == 1.0
+
+
 def test_job_artifact_path_traversal_blocked(client, seed_job):
     rec = seed_job()
     # A traversal attempt must never return an out-of-bounds file (200).
@@ -177,7 +188,7 @@ def test_job_file_master_success(client, seed_job):
     assert resp.headers["content-type"] == "audio/wav"
 
 
-def test_job_file_master_prefers_flac(client, seed_job):
+def test_job_file_master_prefers_playback_wav(client, seed_job):
     import io
 
     import numpy as np
@@ -187,34 +198,25 @@ def test_job_file_master_prefers_flac(client, seed_job):
     n = int(1.0 * 44100)
     y = np.sin(2 * np.pi * 440 * (np.arange(n) / 44100)).astype("float32")
     buf = io.BytesIO()
-    sf.write(buf, y, 44100, format="FLAC")
+    sf.write(buf, y, 44100, format="WAV", subtype="PCM_16")
     buf.seek(0)
-    flac = rec.master_path.with_suffix(".flac")
-    flac.write_bytes(buf.read())
+    playback = rec.master_path.with_name("master_playback.wav")
+    playback.write_bytes(buf.read())
 
     resp = client.get(f"/api/jobs/{rec.job_id}/files/master")
     assert resp.status_code == 200
-    assert resp.headers["content-type"] == "audio/flac"
+    assert resp.headers["content-type"] == "audio/wav"
+    assert "master_playback.wav" in resp.headers["content-disposition"]
 
 
 def test_job_file_master_wav_always_wav(client, seed_job):
-    import io
-
-    import numpy as np
-    import soundfile as sf
-
     rec = seed_job(with_master=True)
-    n = int(1.0 * 44100)
-    y = np.sin(2 * np.pi * 440 * (np.arange(n) / 44100)).astype("float32")
-    buf = io.BytesIO()
-    sf.write(buf, y, 44100, format="FLAC")
-    buf.seek(0)
-    flac = rec.master_path.with_suffix(".flac")
-    flac.write_bytes(buf.read())
+    rec.master_path.with_name("master_playback.wav").write_bytes(b"playback")
 
     resp = client.get(f"/api/jobs/{rec.job_id}/files/master_wav")
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "audio/wav"
+    assert "master.wav" in resp.headers["content-disposition"]
 
 
 def test_job_file_master_unavailable(client, seed_job):

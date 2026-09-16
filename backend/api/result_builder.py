@@ -90,8 +90,10 @@ def _metadata_snapshot(rec: JobRecord) -> dict[str, Any]:
 def build_job_result(rec: JobRecord) -> JobResultResponse:
     job_id = rec.job_id
     is_rollout = rec.user_role == UserRole.ROLLOUT.value
+    meta = _metadata_snapshot(rec)
+    analysis_val = rec.analysis or meta.get("analysis") or {}
 
-    # master_playback_url: prefers FLAC if available (≈ 3x smaller) via /files/master
+    # master_playback_url: browser playback WAV via /files/master
     # master_wav_url: canonical 24-bit WAV download via /files/master_wav
     playback_url = f"/api/jobs/{job_id}/files/master"
     wav_url = f"/api/jobs/{job_id}/files/master_wav"
@@ -107,15 +109,16 @@ def build_job_result(rec: JobRecord) -> JobResultResponse:
             input_url="",
             master_wav_url=wav_url,
             master_playback_url=playback_url,
+            waveform_peaks=_waveform_peaks(analysis_val if isinstance(analysis_val, dict) else {}),
             exports=[],
             streaming_notes=[],
             memory_profile=[],
+            finalizing=rec.finalizing,
+            finalize_error=rec.finalize_error,
         )
 
-    meta = _metadata_snapshot(rec)
     raw_intent_val = rec.raw_intent if rec.raw_intent is not None else meta.get("raw_intent")
     safe_intent_val = rec.safe_intent if rec.safe_intent is not None else meta.get("safe_intent")
-    analysis_val = rec.analysis or meta.get("analysis") or {}
     report_val = rec.report or meta.get("report") or {}
 
     return JobResultResponse(
@@ -133,6 +136,8 @@ def build_job_result(rec: JobRecord) -> JobResultResponse:
         streaming_notes=rec.streaming_notes,
         memory_profile=rec.memory_profile or [],
         dsp_params=_dsp_params_for(rec),
+        finalizing=rec.finalizing,
+        finalize_error=rec.finalize_error,
     )
 
 

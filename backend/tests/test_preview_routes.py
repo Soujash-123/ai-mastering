@@ -81,7 +81,7 @@ def test_preview_renders_segment(client, early_access_headers, seed_job):
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["url"].endswith("/artifacts/preview.flac")
+    assert body["url"].endswith("/artifacts/preview_playback.wav")
     assert body["download_url"].endswith("/artifacts/preview.wav")
     assert body["duration_sec"] > 0
     assert body["is_full"] is False
@@ -98,7 +98,7 @@ def test_preview_renders_full_track(client, early_access_headers, seed_job):
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["url"].endswith("/artifacts/preview_full.flac")
+    assert body["url"].endswith("/artifacts/preview_full_playback.wav")
     assert body["download_url"].endswith("/artifacts/preview_full.wav")
     assert body["is_full"] is True
 
@@ -125,10 +125,10 @@ def test_preview_artifact_available(client, early_access_headers, seed_job):
     )
     assert resp.status_code == 200
     body = resp.json()
-    # Playback serves the compact FLAC; download serves the canonical WAV.
-    flac = client.get(body["url"])
-    assert flac.status_code == 200
-    assert flac.headers["content-type"] == "audio/flac"
+    # Playback serves the compact WAV; download serves the canonical WAV.
+    playback = client.get(body["url"])
+    assert playback.status_code == 200
+    assert playback.headers["content-type"] == "audio/wav"
     wav = client.get(body["download_url"])
     assert wav.status_code == 200
     assert wav.headers["content-type"] == "audio/wav"
@@ -140,6 +140,43 @@ def test_finalize_requires_ea(client, rollout_headers, seed_job):
     assert resp.status_code == 403
 
 
+def _wait_finalized(client, job_id: str, timeout: float = 15.0) -> dict | None:
+    """Poll /result until the background finalize flips `finalizing` to false."""
+    import time
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        resp = client.get(f"/api/jobs/{job_id}/result")
+        if resp.status_code != 200:
+            time.sleep(0.1)
+            continue
+        body = resp.json()
+        if body.get("finalizing") is False:
+            return body
+        time.sleep(0.1)
+    return None
+
+
+def test_finalize_is_async_and_polls_to_done(client, early_access_headers, seed_job):
+    rec = seed_job(user_role=UserRole.EARLY_ACCESS.value)
+    _write_context(rec.input_path.parent)
+
+    # The POST returns immediately and marks the job as finalizing.
+    resp = client.post(
+        f"/api/jobs/{rec.job_id}/finalize",
+        json={"overrides": {}},
+        headers=early_access_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["finalizing"] is True
+
+    # Polling /result eventually sees it done with no error.
+    body = _wait_finalized(client, rec.job_id)
+    assert body is not None
+    assert body["finalizing"] is False
+    assert body["finalize_error"] is None
+
+
 def test_finalize_renders_and_updates_exports(client, early_access_headers, seed_job):
     rec = seed_job(user_role=UserRole.EARLY_ACCESS.value)
     _write_context(rec.input_path.parent)
@@ -149,11 +186,14 @@ def test_finalize_renders_and_updates_exports(client, early_access_headers, seed
         headers=early_access_headers,
     )
     assert resp.status_code == 200, resp.text
-    body = resp.json()
-    assert body["job_id"] == rec.job_id
+
+    body = _wait_finalized(client, rec.job_id)
+    assert body is not None
+    assert body["finalize_error"] is None
     assert body["dsp_params"]["target_lufs"] == -12.0
-    # master + platform exports should now exist on disk
+    # master + playback copy + platform exports should now exist on disk
     assert (rec.input_path.parent / "master.wav").exists()
+    assert (rec.input_path.parent / "master_playback.wav").exists()
     assert len(body["exports"]) > 0
     for e in body["exports"]:
         assert e["download_url"].startswith(f"/api/jobs/{rec.job_id}/artifacts/")
@@ -169,4 +209,7 @@ def test_finalize_overwrites_master(client, early_access_headers, seed_job):
         headers=early_access_headers,
     )
     assert resp.status_code == 200
+    body = _wait_finalized(client, rec.job_id)
+    assert body is not None
+    assert body["finalizing"] is False
     assert (rec.input_path.parent / "master.wav").stat().st_mtime_ns != before

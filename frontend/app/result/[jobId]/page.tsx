@@ -103,7 +103,7 @@ export default function ResultPage() {
   const dirtyRef = useRef(false);
   const seqRef = useRef(0);
   const currentTimeRef = useRef(0);
-  const triedWavFallbackRef = useRef(false);
+  const finalizeHandledRef = useRef(false);
 
   const canDsp = fullAccess && !!data?.dsp_params;
 
@@ -150,7 +150,7 @@ export default function ResultPage() {
     setAudioUrl(`${apiUrl(data.master_playback_url ?? data.master_wav_url)}?v=${Date.now()}`);
     setDownloadUrl(`${apiUrl(data.master_wav_url)}?v=${Date.now()}`);
     setDspReady(true);
-    setFinalized(true);
+    setFinalized(!data.finalizing);
     setPreviewStats(null);
   }, [data]);
 
@@ -217,42 +217,13 @@ export default function ResultPage() {
   }, [jobId]);
 
   useEffect(() => {
-    if (!urls) return;
     const peaks = data?.waveform_peaks;
     if (peaks && peaks.length > 0) {
       setMasterBars(peaks.map((v) => Math.min(1, Math.max(0.02, Number(v) || 0))));
       return;
     }
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch(urls.out);
-        const arrBuf = await res.arrayBuffer();
-        const ac = new AudioContext();
-        const decoded = await ac.decodeAudioData(arrBuf);
-        await ac.close();
-        if (cancelled) return;
-        const ch0 = decoded.getChannelData(0);
-        const NUM_BARS = 100;
-        const segLen = Math.max(1, Math.floor(ch0.length / NUM_BARS));
-        let globalMax = 0;
-        const rawBars: number[] = [];
-        for (let i = 0; i < NUM_BARS; i++) {
-          let peak = 0;
-          const s = i * segLen;
-          const e = Math.min(ch0.length, s + segLen);
-          for (let j = s; j < e; j++) {
-            const abs = Math.abs(ch0[j]);
-            if (abs > peak) peak = abs;
-          }
-          rawBars.push(peak);
-          if (peak > globalMax) globalMax = peak;
-        }
-        if (!cancelled) setMasterBars(rawBars.map((v) => (globalMax > 0 ? v / globalMax : 0.3)));
-      } catch { /* non-critical */ }
-    })();
-    return () => { cancelled = true; };
-  }, [urls, data]);
+    setMasterBars(Array.from({ length: 100 }, () => 0.25));
+  }, [data?.waveform_peaks]);
 
   // Reload the audio element whenever the (live) preview source changes.
   useEffect(() => {
@@ -299,10 +270,9 @@ export default function ResultPage() {
   };
 
   const onAudioError = useCallback(() => {
-    if (!data || triedWavFallbackRef.current) return;
-    triedWavFallbackRef.current = true;
-    setAudioUrl(`${apiUrl(data.master_wav_url)}?v=${Date.now()}`);
-  }, [data]);
+    setIsPlaying(false);
+    setPreviewError("Playback file is unavailable. Try finalizing again.");
+  }, []);
 
   const handleParamChange = useCallback((key: string, value: number) => {
     dirtyRef.current = true;
@@ -316,31 +286,71 @@ export default function ResultPage() {
 
   const handleFinalize = useCallback(async () => {
     if (!data || finalizing || rendering) return;
+    finalizeHandledRef.current = false;
     setFinalizing(true);
     setPreviewError(null);
     setRendering(false);
     dirtyRef.current = false;
     seqRef.current += 1;
     try {
-      const updated = await finalizeJob(jobId, overrides);
-      if (updated) {
-        setData(updated);
-        setFinalized(true);
-        const playback = `${apiUrl(updated.master_playback_url ?? updated.master_wav_url)}?v=${Date.now()}`;
-        const wav = `${apiUrl(updated.master_wav_url)}?v=${Date.now()}`;
-        setAudioUrl(playback);
-        setDownloadUrl(wav);
-        setPreviewStats(null);
-        setIsPlaying(false);
-        setCurrentTime(0);
-        sessionStorage.setItem(`kord_result_${jobId}`, JSON.stringify(updated));
-      }
+      // Returns immediately; the render runs in the background and the polling
+      // effect below applies the new master + exports when it completes.
+      await finalizeJob(jobId, overrides);
     } catch (e) {
-      setPreviewError(e instanceof Error ? e.message : "Finalize failed");
-    } finally {
       setFinalizing(false);
+      setPreviewError(e instanceof Error ? e.message : "Finalize failed");
     }
   }, [data, finalizing, rendering, jobId, overrides]);
+
+  // Poll /result while a background finalize is in flight. Once `finalizing`
+  // flips to false the new master is committed, so swap the player/download to
+  // it (fresh cache-buster) — or surface `finalize_error` if it failed.
+  const finalizeInFlight = finalizing || !!data?.finalizing;
+  useEffect(() => {
+    if (!finalizeInFlight) {
+      finalizeHandledRef.current = false;
+      return;
+    }
+    // A terminal state (done / error / timeout) may leave data.finalizing true;
+    // keep polling stopped via the ref until the user starts a new finalize.
+    if (finalizeHandledRef.current) return;
+    let cancelled = false;
+    let attempts = 0;
+    const tick = async () => {
+      if (cancelled) return;
+      attempts += 1;
+      try {
+        const r = await fetchResult(jobId);
+        if (cancelled || !r) return;
+        if (r.finalizing) {
+          if (attempts > 150) {
+            finalizeHandledRef.current = true;
+            setFinalizing(false);
+            setPreviewError("Finalize timed out. Refresh the page and try again.");
+          }
+          return;
+        }
+        finalizeHandledRef.current = true;
+        setFinalizing(false);
+        if (r.finalize_error) {
+          setPreviewError(r.finalize_error);
+          return;
+        }
+        setIsPlaying(false);
+        setCurrentTime(0);
+        setData(r);
+      } catch (e) {
+        if (attempts > 10) {
+          finalizeHandledRef.current = true;
+          setFinalizing(false);
+          setPreviewError(e instanceof Error ? e.message : "Finalize failed");
+        }
+      }
+    };
+    const id = setInterval(tick, 2000);
+    void tick();
+    return () => { cancelled = true; clearInterval(id); };
+  }, [finalizeInFlight, jobId]);
 
   if (err) {
     return (
@@ -395,7 +405,7 @@ export default function ResultPage() {
         onAudioLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
         drawWaveform={drawWaveform}
         drawPeaks={drawPeaksFromData}
-        waveformPeaks={data.waveform_peaks ?? []}
+        waveformPeaks={data.waveform_peaks?.length ? data.waveform_peaks : masterBars}
         downloadUrl={downloadUrl}
         liveTargetLufs={liveTargetLufs}
         isFinalized={finalized}
