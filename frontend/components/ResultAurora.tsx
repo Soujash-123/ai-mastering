@@ -24,6 +24,7 @@ export function AnalysisIcon({ type, color }: { type: string; color: string }) {
 }
 
 export function fmtTime(s: number) {
+  if (!Number.isFinite(s) || s < 0) return "00:00";
   const m = Math.floor(s / 60);
   const sec = Math.floor(s % 60);
   return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;

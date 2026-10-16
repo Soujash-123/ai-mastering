@@ -5,6 +5,7 @@ import gc
 import logging
 import shutil
 from pathlib import Path
+from typing import Any
 
 from analysis.engine import analyze_audio_file
 from analysis.slim import slim_analysis_for_dsp
@@ -15,6 +16,7 @@ from mastering.chain import master_file
 from mastering.preview import save_render_context
 from mastering.safety import intent_to_safe_params
 from services.job_store import job_store
+from services.appwrite_storage import upload_master_for_job
 from utils.config import get_settings
 from utils.memory import activate_job_memory_tracker, deactivate_job_memory_tracker, memory_step
 from auth.database import SessionLocal
@@ -112,6 +114,18 @@ async def process_job(job_id: str, target_platform: str, user_intent: str) -> No
                 }
             )
 
+        # Upload ONLY the final mastered audio to Appwrite. Original uploads,
+        # intermediates and exports stay local. Failures never fail the job:
+        # the pipeline reports it by setting appwrite_state="failed" instead.
+        # Note this is NOT gated on `ephemeral` — that flag governs the local
+        # job folder only, and the real UI flow always sets it, so gating here
+        # meant nothing was ever uploaded.
+        appwrite_updates: dict[str, Any] = {}
+        if master_path.exists():
+            appwrite_updates = await asyncio.to_thread(
+                upload_master_for_job, job_id, master_path, rec.original_filename
+            )
+
         await job_store.update(
             job_id,
             status=JobStatus.completed,
@@ -121,6 +135,7 @@ async def process_job(job_id: str, target_platform: str, user_intent: str) -> No
             exports=exports_public,
             streaming_notes=notes,
             memory_profile=tracker.reports_as_dicts(),
+            **appwrite_updates,
         )
         # Increment per-user mastered counter (best-effort)
         try:

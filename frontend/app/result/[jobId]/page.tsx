@@ -6,7 +6,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { MemoryProfilePanel } from "@/components/debug/MemoryProfilePanel";
 import { LeaveStudioModal } from "@/components/result/LeaveStudioModal";
 import { DSPControlPanel, type PreviewMode } from "@/components/result/DSPControlPanel";
-import { apiUrl, deleteJob, fetchResult, finalizeJob, previewJob, type JobResult } from "@/lib/api";
+import { apiUrl, deleteJob, fetchResult, finalizeJob, masterDownloadUrl, previewJob, type JobResult } from "@/lib/api";
 import { canAccessFullResult } from "@/lib/auth";
 import { getTier, getTierConfig } from "@/lib/tier";
 import { extractBaseParams, DSP_PARAM_KEYS } from "@/lib/dsp";
@@ -106,6 +106,10 @@ export default function ResultPage() {
   const finalizeHandledRef = useRef(false);
 
   const canDsp = fullAccess && !!data?.dsp_params;
+  const analyzedDuration = useMemo(() => {
+    const value = Number((data?.analysis as Record<string, unknown> | undefined)?.duration_sec);
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  }, [data]);
 
   const overrides = useMemo(() => {
     const out: Record<string, number> = {};
@@ -147,8 +151,14 @@ export default function ResultPage() {
   useEffect(() => {
     if (!data) return;
     setDspParams(extractBaseParams(data));
-    setAudioUrl(`${apiUrl(data.master_playback_url ?? data.master_wav_url)}?v=${Date.now()}`);
-    setDownloadUrl(`${apiUrl(data.master_wav_url)}?v=${Date.now()}`);
+    // Prefer the signed Appwrite URL so playback bypasses the EC2 instance.
+    // Fall back to the backend route when Appwrite token creation failed.
+    setAudioUrl(
+      data.master?.download_url ??
+      `${apiUrl(data.master_playback_url ?? data.master_wav_url)}?v=${Date.now()}`,
+    );
+    // The download link prefers the Appwrite-signed cloud URL when available.
+    setDownloadUrl(masterDownloadUrl(data, Date.now()));
     setDspReady(true);
     setFinalized(!data.finalizing);
     setPreviewStats(null);
@@ -263,7 +273,8 @@ export default function ResultPage() {
 
   const onSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const t = ((e.clientX - rect.left) / rect.width) * (duration || 0);
+    const seekDuration = Number.isFinite(duration) && duration > 0 ? duration : analyzedDuration;
+    const t = Math.max(0, Math.min(seekDuration, ((e.clientX - rect.left) / rect.width) * seekDuration));
     setCurrentTime(t);
     currentTimeRef.current = t;
     if (masterAudioRef.current) masterAudioRef.current.currentTime = t;
@@ -401,8 +412,16 @@ export default function ResultPage() {
         masterAudioRef={masterAudioRef as React.RefObject<HTMLAudioElement>}
         onAudioEnded={() => { setIsPlaying(false); setCurrentTime(0); }}
         onAudioError={onAudioError}
-        onAudioTimeUpdate={(e) => { setCurrentTime(e.currentTarget.currentTime); currentTimeRef.current = e.currentTarget.currentTime; }}
-        onAudioLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+        onAudioTimeUpdate={(e) => {
+          const time = Number.isFinite(e.currentTarget.currentTime) ? e.currentTarget.currentTime : 0;
+          setCurrentTime(time);
+          currentTimeRef.current = time;
+          setIsPlaying(!e.currentTarget.paused && !e.currentTarget.ended);
+        }}
+        onAudioLoadedMetadata={(e) => {
+          const mediaDuration = e.currentTarget.duration;
+          setDuration(Number.isFinite(mediaDuration) && mediaDuration > 0 ? mediaDuration : analyzedDuration);
+        }}
         drawWaveform={drawWaveform}
         drawPeaks={drawPeaksFromData}
         waveformPeaks={data.waveform_peaks?.length ? data.waveform_peaks : masterBars}
@@ -410,6 +429,8 @@ export default function ResultPage() {
         liveTargetLufs={liveTargetLufs}
         isFinalized={finalized}
         controlPanel={
+          /* Temporarily disabled while Appwrite-backed playback is stabilized.
+           * Keep the editing implementation in place for re-enablement.
           canDsp ? (
             <DSPControlPanel
               params={dspParams}
@@ -426,6 +447,8 @@ export default function ResultPage() {
               finalized={finalized}
             />
           ) : undefined
+          */
+          undefined
         }
       />
       {fullAccess && data.memory_profile && (

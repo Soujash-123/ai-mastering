@@ -3,14 +3,32 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from api.schemas import JobResultResponse, JobStatus
+from api.schemas import JobResultResponse, JobStatus, MasterInfo
 from auth.schemas import UserRole
 from mastering.preview import load_render_context
 from services.job_store import JobRecord
 from utils.json_safe import to_json_safe
+
+
+def _build_master_info(rec: JobRecord) -> MasterInfo | None:
+    """Appwrite cloud presence for the final mastered audio (or None when absent)."""
+    if not rec.master_path:
+        return None
+    state = rec.appwrite_state or "none"
+    if state not in ("uploaded", "failed", "expired"):
+        state = "none"
+    return MasterInfo(
+        filename=rec.appwrite_filename or rec.master_path.name,
+        file_id=rec.appwrite_file_id,
+        expires_at=rec.appwrite_expires_at,
+        download_url=rec.appwrite_download_url,
+        state=state,
+        error=rec.appwrite_error,
+    )
 
 
 def _dsp_params_for(rec: JobRecord) -> dict[str, float] | None:
@@ -113,6 +131,7 @@ def build_job_result(rec: JobRecord) -> JobResultResponse:
             exports=[],
             streaming_notes=[],
             memory_profile=[],
+            master=_build_master_info(rec),
             finalizing=rec.finalizing,
             finalize_error=rec.finalize_error,
         )
@@ -136,8 +155,30 @@ def build_job_result(rec: JobRecord) -> JobResultResponse:
         streaming_notes=rec.streaming_notes,
         memory_profile=rec.memory_profile or [],
         dsp_params=_dsp_params_for(rec),
+        master=_build_master_info(rec),
         finalizing=rec.finalizing,
         finalize_error=rec.finalize_error,
+    )
+
+
+def build_cloud_job_result(job_id: str, pending: dict[str, Any]) -> JobResultResponse:
+    """Build the minimal result payload after local ephemeral files are gone."""
+    filename = str(pending.get("filename") or "master.wav")
+    return JobResultResponse(
+        job_id=job_id,
+        status="completed",
+        analysis={},
+        report={},
+        input_url="",
+        master_wav_url=f"/api/jobs/{job_id}/master/download",
+        master_playback_url=f"/api/jobs/{job_id}/master/download",
+        master=MasterInfo(
+            filename=filename,
+            file_id=pending.get("file_id"),
+            expires_at=datetime.fromisoformat(pending["expires_at"]) if pending.get("expires_at") else None,
+            download_url=pending.get("download_url"),
+            state="uploaded",
+        ),
     )
 
 

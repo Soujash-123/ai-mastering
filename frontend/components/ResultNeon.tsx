@@ -1,12 +1,74 @@
 import React from "react";
 import Link from "next/link";
-import { type JobResult, apiUrl } from "@/lib/api";
+import { type JobResult, type MasterInfo, apiUrl } from "@/lib/api";
 import { ANALYSIS_CARDS, AnalysisIcon, fmtTime, type ResultProps } from "./ResultAurora";
 import { NeonWaveformCanvas } from "./NeonWaveformCanvas";
 
 function pickNum(v: unknown): number | null {
   if (typeof v === "number" && Number.isFinite(v)) return v;
   return null;
+}
+
+/**
+ * Surfaces where the canonical master is stored.
+ *
+ * Silent by default: when Appwrite is not configured (`state === "none"`) there
+ * is nothing to tell the user. It only speaks up when something is worth
+ * knowing — the master is in the cloud and will expire, or the upload failed
+ * even though mastering itself succeeded.
+ */
+function CloudMasterStatus({ jobId, master }: { jobId: string; master: MasterInfo | null | undefined }) {
+  if (!master || master.state === "none") return null;
+
+  const shell = "rounded-3xl border border-white/5 bg-[#09090b]/60 backdrop-blur-md p-6";
+
+  if (master.state === "failed") {
+    return (
+      <div className={shell}>
+        <h2 className="text-sm font-bold uppercase tracking-[0.15em] text-white/50 mb-2">Cloud Storage</h2>
+        <p className="text-sm text-amber-300/80">
+          Your master was produced but could not be stored in the cloud. It is still available to
+          download from this page.
+        </p>
+      </div>
+    );
+  }
+
+  if (master.state === "expired") {
+    return (
+      <div className={shell}>
+        <h2 className="text-sm font-bold uppercase tracking-[0.15em] text-white/50 mb-2">Cloud Storage</h2>
+        <p className="text-sm text-white/40">
+          The retention window for this master has closed and the stored copy was deleted.
+        </p>
+      </div>
+    );
+  }
+
+  const hoursLeft = master.expires_at
+    ? Math.max(0, Math.round((new Date(master.expires_at).getTime() - Date.now()) / 3_600_000))
+    : null;
+
+  return (
+    <div className={shell}>
+      <h2 className="text-sm font-bold uppercase tracking-[0.15em] text-white/50 mb-2">Cloud Storage</h2>
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-sm text-white/60">
+          <span className="text-cyan-400 font-bold">master.wav</span> stored in the cloud
+          {hoursLeft !== null && <span className="text-white/40"> · expires in ~{hoursLeft}h</span>}
+        </p>
+        {master.download_url && (
+          <a
+            href={apiUrl(`/api/jobs/${jobId}/master/download`)}
+            download
+            className="shrink-0 text-xs font-bold uppercase tracking-[0.15em] text-cyan-400 hover:text-cyan-300 transition-colors"
+          >
+            Download
+          </a>
+        )}
+      </div>
+    </div>
+  );
 }
 
 const BAR_META = [
@@ -177,16 +239,16 @@ export function ResultNeon({
                       height: `${Math.max(4, amp * 100)}%`,
                       background: `linear-gradient(180deg, hsla(${hue}, 90%, 65%, 1), hsla(${hue}, 90%, 65%, 0.2))`,
                       boxShadow: isPlaying ? `0 0 10px hsla(${hue}, 90%, 65%, 0.4)` : "none",
-                      opacity: (currentTime / (duration || 1)) > (i / 100) ? 1 : 0.4
+                      opacity: (currentTime / (Number.isFinite(duration) && duration > 0 ? duration : 1)) > (i / 100) ? 1 : 0.4
                     }}
                   />
                 );
               })}
               {/* Playhead */}
-              {duration > 0 && (
+              {Number.isFinite(duration) && duration > 0 && (
                 <div
                   className="absolute top-0 bottom-0 w-px bg-white shadow-[0_0_15px_#fff] z-10"
-                  style={{ left: `${(currentTime / duration) * 100}%` }}
+                  style={{ left: `${Math.min(100, Math.max(0, (currentTime / duration) * 100))}%` }}
                 />
               )}
             </div>
@@ -210,7 +272,7 @@ export function ResultNeon({
               <div className="relative flex-1 h-2 bg-white/5 rounded-full cursor-pointer" onClick={onSeek}>
                 <div
                   className="absolute top-0 left-0 h-full rounded-full bg-gradient-to-r from-cyan-400 to-lime-400"
-                  style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+                  style={{ width: `${Number.isFinite(duration) && duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0}%` }}
                 />
               </div>
               
@@ -298,6 +360,8 @@ export function ResultNeon({
               <h2 className="text-sm font-bold uppercase tracking-[0.15em] text-white/50 mb-6">DSP Intent</h2>
               <NeonIntensityBars intent={data.safe_intent} />
             </div>
+
+            <CloudMasterStatus jobId={jobId} master={data.master} />
 
             {/* Export Files */}
             {data.exports.length > 0 && (

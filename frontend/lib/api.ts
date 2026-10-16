@@ -34,6 +34,25 @@ export type MemoryStepReport = {
   delta_mb: number;
 };
 
+/**
+ * Cloud presence of the final master (Appwrite storage).
+ *
+ * `state`:
+ *  - `none`     Appwrite is not configured, or the job predates the integration
+ *  - `uploaded` stored in the bucket; `download_url` is a signed Appwrite URL
+ *  - `failed`   mastering succeeded but the cloud upload did not
+ *  - `expired`  the retention window closed and the file was deleted
+ */
+export type MasterInfo = {
+  filename: string;
+  file_id: string | null;
+  expires_at: string | null;
+  /** Absolute Appwrite URL when a file token was minted, else null. */
+  download_url: string | null;
+  state: "none" | "uploaded" | "failed" | "expired";
+  error: string | null;
+};
+
 export type JobResult = {
   job_id: string;
   status: string;
@@ -69,9 +88,28 @@ export type JobResult = {
   streaming_notes: string[];
   memory_profile?: MemoryStepReport[];
   dsp_params?: Record<string, number> | null;
+  master?: MasterInfo | null;
   finalizing?: boolean;
   finalize_error?: string | null;
 };
+
+/**
+ * Resolve the best available canonical-master download URL.
+ *
+ * Uses the application download route so the browser receives a download
+ * without navigating to or exposing the Appwrite media URL.
+ *
+ * `cacheBust` is appended only to the backend path: a signed Appwrite URL
+ * already carries a `?token=...` query, and a second `?` would corrupt it.
+ * Signed URLs are unique per upload, so they need no cache-busting.
+ */
+export function masterDownloadUrl(
+  data: Pick<JobResult, "job_id" | "master" | "master_wav_url">,
+  cacheBust?: number,
+): string {
+  const base = apiUrl(`/api/jobs/${data.job_id}/master/download`);
+  return cacheBust === undefined ? base : `${base}?v=${cacheBust}`;
+}
 
 export async function createJob(file: File, targetPlatform: string, userIntent: string, ephemeral = true) {
   const fd = new FormData();

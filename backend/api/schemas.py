@@ -44,6 +44,21 @@ class MemoryStepReport(BaseModel):
     delta_mb: float
 
 
+class MasterInfo(BaseModel):
+    """Appwrite cloud presence of the final mastered audio.
+
+    ``state`` is one of: ``none`` (not uploaded / Appwrite inactive), ``uploaded``,
+    ``failed`` (mastering succeeded but the cloud upload did not), ``expired``
+    (the 12-hour window has passed and the Appwrite file has been deleted).
+    """
+    filename: str
+    file_id: Optional[str] = None
+    expires_at: Optional[datetime] = None
+    download_url: Optional[str] = None
+    state: str = "none"
+    error: Optional[str] = None
+
+
 class JobResultResponse(BaseModel):
     job_id: str
     status: JobStatus
@@ -59,6 +74,7 @@ class JobResultResponse(BaseModel):
     streaming_notes: list[str] = Field(default_factory=list)
     memory_profile: list[MemoryStepReport] = Field(default_factory=list)
     dsp_params: Optional[dict[str, float]] = None
+    master: Optional[MasterInfo] = None
     # True while a background /finalize render is in flight; clients poll until it
     # flips to False. finalize_error carries the failure reason (master stays intact).
     finalizing: bool = False

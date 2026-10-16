@@ -9,7 +9,10 @@ myenv/
 
 # Env & secrets
 .env
+.env.*
+!.env.example
 .env.local
+env
 *.pem
 backend/.env
 deployment-*.log
@@ -43,3 +46,7 @@ Thumbs.db
 
 # Temp scripts
 temp.py
+
+# Local agent rules
+rules.md
+.opencode/

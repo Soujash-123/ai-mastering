@@ -5,6 +5,7 @@ engine and Settings point at a throwaway SQLite DB and temp data dir.
 """
 from __future__ import annotations
 
+import asyncio
 import io
 import os
 import tempfile
@@ -15,6 +16,22 @@ _TMP = Path(tempfile.mkdtemp(prefix="kord_test_"))
 os.environ["DATABASE_URL"] = f"sqlite:///{(_TMP / 'test.db').as_posix()}"
 os.environ["AI_MASTERING_DATA_DIR"] = str(_TMP)
 os.environ["JWT_SECRET_KEY"] = "test-secret-key-for-pytest-0123456789"
+
+# Appwrite must be inert during tests. backend/.env holds real credentials and
+# Settings reads it relative to the CWD, so without this every /finalize test
+# would perform a real upload (and a real delete) against the live bucket.
+# These must be set to EMPTY STRINGS rather than popped: pydantic-settings gives
+# real env vars priority over the .env file, so popping them would let the file
+# supply the live values again.
+for _var in (
+    "APPWRITE_ENDPOINT",
+    "APPWRITE_PROJECT_ID",
+    "APPWRITE_API_KEY",
+    "APPWRITE_BUCKET_ID",
+):
+    os.environ[_var] = ""
+os.environ["APPWRITE_TTL_HOURS"] = "12"
+os.environ["APPWRITE_PURGE_LOCAL_INPUT"] = "false"
 
 import numpy as np  # noqa: E402
 import pytest  # noqa: E402
@@ -38,6 +55,38 @@ def _fresh_db():
     yield
     Base.metadata.drop_all(bind=engine)
     job_store._jobs.clear()
+
+
+@pytest.fixture
+def settings_override(monkeypatch):
+    """Patch fields on the cached Settings singleton and restore them after.
+
+    get_settings() is an lru_cache'd instance, so the fields live on the
+    instance — patching the class (or the env) is not enough to change what the
+    running app sees.
+    """
+    settings = get_settings()
+
+    def _apply(**values):
+        for key, value in values.items():
+            monkeypatch.setattr(settings, key, value, raising=False)
+        return settings
+
+    return _apply
+
+
+@pytest.fixture
+def run_async():
+    """Run a coroutine to completion.
+
+    pytest-asyncio is not a dependency of this project, so async tests drive the
+    loop through this helper instead of a marker.
+    """
+
+    def _run(coro):
+        return asyncio.run(coro)
+
+    return _run
 
 
 @pytest.fixture

@@ -3,8 +3,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Annotated, Union
+from typing import Annotated, Any, Union
 
 # Allow `uvicorn api.main:app` from backend/ without PYTHONPATH tweaks
 _BACKEND_ROOT = Path(__file__).resolve().parents[1]
@@ -15,9 +16,9 @@ import numpy as np
 import soundfile as sf
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
-from api.result_builder import build_job_result, build_ws_result_payload
+from api.result_builder import build_cloud_job_result, build_job_result, build_ws_result_payload
 from api.schemas import (
     FinalizeRequest,
     JobCreateResponse,
@@ -45,6 +46,15 @@ from mastering.preview import (
     update_render_context_params,
 )
 from services.job_store import job_store, delete_job_by_id, schedule_delete
+from services.appwrite_storage import (
+    AppwriteStorageError,
+    jobs_root,
+    refresh_master_for_job,
+    load_pending_appwrite_metadata,
+    find_master_metadata,
+    start_appwrite_cleanup_loop,
+    stream_master,
+)
 from utils.config import get_settings
 from utils.log import configure_logging
 from workers.processor import process_job
@@ -70,8 +80,13 @@ app.include_router(early_access_router)
 
 
 @app.on_event("startup")
-def _startup() -> None:
+async def _startup() -> None:
     init_db()
+    # Periodic 12-hour Appwrite cleanup; state is on disk so it survives restarts.
+    try:
+        asyncio.create_task(start_appwrite_cleanup_loop())
+    except Exception:  # noqa: BLE001
+        LOGGER.exception("Failed to schedule Appwrite cleanup loop")
 
 _ALLOWED = frozenset({".wav", ".flac"})
 
@@ -106,6 +121,41 @@ def _audio_duration(path: Path) -> float:
         return float(sf.info(str(path)).duration)
     except Exception:
         return 0.0
+
+
+def _master_expired(rec) -> bool:
+    """True once the mastered audio's Appwrite retention window has elapsed."""
+    if not rec.appwrite_expires_at:
+        return False
+    return datetime.now(timezone.utc) > rec.appwrite_expires_at
+
+
+# Artifacts that are removed from disk when a master's window closes, so they
+# must stop being served the moment the window closes (not merely once the
+# cleanup loop next runs).
+_EXPIRY_GATED_FILES = ("master.wav", "master_playback.wav")
+_EXPIRY_GATED_DIRS = ("exports", "streaming_sim")
+
+
+def _artifact_expired(rec, rel_path: str) -> bool:
+    """True when `rel_path` is retention-gated material and the window closed.
+
+    Applies to ephemeral and persistent jobs alike: the cleanup loop purges the
+    local master and exports for both, so both must stop serving them once the
+    window closes.
+    """
+    if not _master_expired(rec):
+        return False
+    parts = Path(rel_path).parts
+    if not parts:
+        return False
+    if parts[0] in _EXPIRY_GATED_DIRS:
+        return True
+    if len(parts) == 1 and parts[0] in _EXPIRY_GATED_FILES:
+        return True
+    if len(parts) == 1 and parts[0] == "input.wav" and settings.appwrite_purge_local_input:
+        return True
+    return False
 
 
 def _normalize_upload_to_job_wav(src: bytes, dest_wav: Path, original_suffix: str) -> None:
@@ -160,6 +210,7 @@ async def create_job(
         user_id=user.id,
         user_role=user.role,
     )
+    rec.original_filename = file.filename
     assert rec.input_path is not None
 
     try:
@@ -209,6 +260,9 @@ async def job_status(job_id: str) -> JobStatusResponse:
 async def job_result(job_id: str) -> Union[JSONResponse, JobResultResponse]:
     rec = await job_store.get(job_id)
     if not rec:
+        pending = load_pending_appwrite_metadata(job_id) or find_master_metadata(job_id)
+        if pending and pending.get("file_id"):
+            return build_cloud_job_result(job_id, pending)
         raise HTTPException(status_code=404, detail="Job not found")
     if rec.status != JobStatus.completed:
         return JSONResponse({"detail": "Job not completed", "status": rec.status.value}, status_code=409)
@@ -364,6 +418,21 @@ async def _run_finalize(job_id: str, overrides: dict[str, float]) -> None:
                     rel = p.relative_to(job_dir.resolve()).as_posix()
                     exports.append({**item, "download_url": f"/api/jobs/{job_id}/artifacts/{rel}"})
 
+            # Replace the stored cloud master with the re-rendered one (delete
+            # old Appwrite file, upload new, fresh retention window). Not gated
+            # on `ephemeral` for the same reason as the initial upload.
+            appwrite_updates: dict[str, Any] = {}
+            if master_path.exists():
+                appwrite_updates = (
+                    await asyncio.to_thread(
+                        refresh_master_for_job,
+                        job_id,
+                        master_path,
+                        rec.appwrite_file_id,
+                        rec.original_filename,
+                    )
+                ) or {}
+
         await job_store.update(
             job_id,
             master_path=master_path,
@@ -372,6 +441,7 @@ async def _run_finalize(job_id: str, overrides: dict[str, float]) -> None:
             message="Done",
             finalizing=False,
             finalize_error=None,
+            **appwrite_updates,
         )
     except Exception as exc:  # noqa: BLE001 - keep the old master + report the failure
         LOGGER.exception("Job %s finalize failed", job_id)
@@ -383,7 +453,12 @@ async def _run_finalize(job_id: str, overrides: dict[str, float]) -> None:
 
 @app.get("/api/jobs/{job_id}/artifacts/{file_path:path}")
 async def job_artifact(job_id: str, file_path: str) -> FileResponse:
-    base = (settings.data_dir / "jobs" / job_id).resolve()
+    rec = await job_store.get(job_id)
+    # A missing record is fine here: artifacts are also read by clients that
+    # only hold the job id, and the file check below is what actually gates.
+    if rec and _artifact_expired(rec, file_path):
+        raise HTTPException(status_code=410, detail="The mastered audio has expired")
+    base = (jobs_root() / job_id).resolve()
     target = (base / file_path).resolve()
     try:
         target.relative_to(base)
@@ -404,6 +479,10 @@ async def job_file(job_id: str, kind: str) -> FileResponse:
     rec = await job_store.get(job_id)
     if not rec:
         raise HTTPException(status_code=404, detail="Job not found")
+    if kind in ("master", "master_wav") and _master_expired(rec):
+        # The Appwrite file has already been (or is about to be) physically
+        # deleted; never let the mastered audio outlive its 12-hour window.
+        raise HTTPException(status_code=410, detail="The mastered audio has expired")
     if kind == "input":
         path = rec.input_path
         media = "audio/wav"
@@ -424,6 +503,68 @@ async def job_file(job_id: str, kind: str) -> FileResponse:
     if not path or not path.exists():
         raise HTTPException(status_code=404, detail="File not available")
     return FileResponse(path, media_type=media, filename=path.name)
+
+
+@app.get("/api/jobs/{job_id}/master/download")
+async def download_master(job_id: str):
+    """Canonical master download.
+
+    Prefers a direct Appwrite file-token URL (the browser streams straight from
+    the CDN, keeping audio traffic off the backend). When token minting failed
+    the file is streamed through the server key instead, so this route never
+    dead-ends on a missing `download_url`.
+    """
+    rec = await job_store.get(job_id)
+    if not rec:
+        pending = load_pending_appwrite_metadata(job_id) or find_master_metadata(job_id)
+        if not pending or not pending.get("file_id"):
+            raise HTTPException(status_code=404, detail="Job not found")
+        expires_at = pending.get("expires_at")
+        if expires_at and datetime.now(timezone.utc) > datetime.fromisoformat(expires_at):
+            raise HTTPException(status_code=410, detail="The mastered audio has expired")
+        try:
+            stream = await asyncio.to_thread(stream_master, pending["file_id"])
+        except AppwriteStorageError as exc:
+            LOGGER.warning("Cloud master unavailable for job %s: %s", job_id, exc)
+            raise HTTPException(status_code=404, detail="Mastered audio is not available") from exc
+        return StreamingResponse(
+            stream,
+            media_type="audio/wav",
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="{pending.get("filename") or "master.wav"}"'
+                )
+            },
+        )
+    if _master_expired(rec):
+        raise HTTPException(status_code=410, detail="The mastered audio has expired")
+    if not rec.master_path:
+        raise HTTPException(status_code=500, detail="Missing master path")
+
+    if rec.appwrite_state == "uploaded" and rec.appwrite_file_id:
+        try:
+            stream = await asyncio.to_thread(stream_master, rec.appwrite_file_id)
+        except AppwriteStorageError as exc:
+            LOGGER.warning("Cloud master unavailable for job %s: %s", job_id, exc)
+        else:
+            return StreamingResponse(
+                stream,
+                media_type="audio/wav",
+                headers={
+                    "Content-Disposition": (
+                        f'attachment; filename="{rec.appwrite_filename or "master.wav"}"'
+                    )
+                },
+            )
+
+    # Appwrite inactive or upload failed: fall back to the local canonical WAV.
+    if rec.master_path.exists():
+        return FileResponse(
+            rec.master_path,
+            media_type="audio/wav",
+            filename=rec.appwrite_filename or "master.wav",
+        )
+    raise HTTPException(status_code=404, detail="Mastered audio is not available")
 
 
 @app.get("/api/health")

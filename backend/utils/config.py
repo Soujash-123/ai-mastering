@@ -60,6 +60,27 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24 * 7
 
+    # Appwrite Cloud Storage for mastered audio (server-side secret API key).
+    # All four must be set for Appwrite integration to activate.
+    appwrite_endpoint: Optional[str] = None
+    appwrite_project_id: Optional[str] = None
+    appwrite_api_key: Optional[str] = None
+    appwrite_bucket_id: Optional[str] = None
+    appwrite_ttl_hours: int = 12
+    # When a master's retention window closes, the local master and its exports
+    # are purged alongside the Appwrite file. The user's original upload is kept
+    # unless this is enabled.
+    appwrite_purge_local_input: bool = False
+
+    @property
+    def appwrite_enabled(self) -> bool:
+        return bool(
+            self.appwrite_endpoint
+            and self.appwrite_project_id
+            and self.appwrite_api_key
+            and self.appwrite_bucket_id
+        )
+
     @property
     def data_dir(self) -> Path:
         # Explicit env-configured path wins
