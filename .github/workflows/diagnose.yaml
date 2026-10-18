@@ -1,31 +1,56 @@
-name: Diagnose EC2 Deployment
+
+name: Identify AWS Account
 
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  diagnose:
+  identify:
     runs-on: ubuntu-latest
+    timeout-minutes: 2
 
     steps:
-      - name: Inspect deployment configuration
+      - name: Identify EC2 account
         shell: bash
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
-          EC2_APP_DIR: ${{ secrets.EC2_APP_DIR }}
         run: |
+          set -euo pipefail
           set +x
 
-          echo "=== Deployment Configuration ==="
-          printf 'EC2_HOST=%s\n' "${EC2_HOST:-<empty>}"
-          printf 'EC2_USER=%s\n' "${EC2_USER:-<empty>}"
-          printf 'EC2_APP_DIR=%s\n' "${EC2_APP_DIR:-<empty>}"
+          KEY_FILE="$RUNNER_TEMP/ec2_key"
+          trap 'rm -f "$KEY_FILE"' EXIT
 
-          echo "=== SSH Key Status ==="
-          if [[ -n "${EC2_SSH_KEY:-}" ]]; then
-            echo "EC2_SSH_KEY is present"
-          else
-            echo "EC2_SSH_KEY is missing or empty"
-          fi
+          printf '%s\n' "$EC2_SSH_KEY" > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+
+          echo "Connecting to EC2..."
+
+          ssh \
+            -i "$KEY_FILE" \
+            -o StrictHostKeyChecking=accept-new \
+            -o ConnectTimeout=10 \
+            -o BatchMode=yes \
+            "$EC2_USER@$EC2_HOST" \
+            'set -eu
+             TOKEN=$(curl -fsS --connect-timeout 3 \
+               -X PUT \
+               -H "X-aws-ec2-metadata-token-ttl-seconds: 60" \
+               http://169.254.169.254/latest/api/token)
+
+             curl -fsS --connect-timeout 3 \
+               -H "X-aws-ec2-metadata-token: $TOKEN" \
+               http://169.254.169.254/latest/dynamic/instance-identity/document |
+             python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          print(\"AWS Account ID:\", d[\"accountId\"])
+          print(\"Instance ID:\", d[\"instanceId\"])
+          print(\"AWS Region:\", d[\"region\"])
+          "'
+
