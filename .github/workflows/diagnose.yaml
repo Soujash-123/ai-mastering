@@ -1,0 +1,31 @@
+name: Diagnose EC2 Deployment
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Inspect deployment configuration
+        shell: bash
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_APP_DIR: ${{ secrets.EC2_APP_DIR }}
+        run: |
+          set +x
+
+          echo "=== Deployment Configuration ==="
+          printf 'EC2_HOST=%s\n' "${EC2_HOST:-<empty>}"
+          printf 'EC2_USER=%s\n' "${EC2_USER:-<empty>}"
+          printf 'EC2_APP_DIR=%s\n' "${EC2_APP_DIR:-<empty>}"
+
+          echo "=== SSH Key Status ==="
+          if [[ -n "${EC2_SSH_KEY:-}" ]]; then
+            echo "EC2_SSH_KEY is present"
+          else
+            echo "EC2_SSH_KEY is missing or empty"
+          fi
