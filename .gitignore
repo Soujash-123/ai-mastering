@@ -16,6 +16,7 @@ env
 *.pem
 backend/.env
 deployment-*.log
+appwrite-keepalive.log
 
 # Build & cache
 .next/

@@ -54,7 +54,7 @@ function CloudMasterStatus({ jobId, master }: { jobId: string; master: MasterInf
       <h2 className="text-sm font-bold uppercase tracking-[0.15em] text-white/50 mb-2">Cloud Storage</h2>
       <div className="flex items-center justify-between gap-4">
         <p className="text-sm text-white/60">
-          <span className="text-cyan-400 font-bold">master.wav</span> stored in the cloud
+          <span className="text-cyan-400 font-bold">{master.filename || "master.flac"}</span> stored in the cloud
           {hoursLeft !== null && <span className="text-white/40"> · expires in ~{hoursLeft}h</span>}
         </p>
         {master.download_url && (
@@ -126,7 +126,7 @@ export function ResultNeon({
   currentTime, duration, copiedId, onCopyId, onTogglePlay, onToggleComparison,
   onSeek, beforeRef, masterAudioRef, onAudioEnded, onAudioError, onAudioTimeUpdate, onAudioLoadedMetadata,
   drawWaveform, downloadUrl, liveTargetLufs, controlPanel, isFinalized = true,
-  drawPeaks, waveformPeaks
+  drawPeaks, waveformPeaks, promptTab
 }: ResultProps) {
   const analysis = data.analysis as Record<string, unknown>;
   const safeIntent = data.safe_intent as Record<string, unknown>;
@@ -190,7 +190,7 @@ export function ResultNeon({
             { label: "Original LUFS", val: intLufs },
             { label: "Target LUFS", val: liveTargetLufs ?? tgtLufs },
             { label: "Resolution", val: "24-bit" },
-            { label: "Format", val: "WAV" }
+            { label: "Download", val: "FLAC" }
           ].map((s, i) => (
             <div key={i} className="flex-1 min-w-[140px] p-5 border border-cyan-400/10 rounded-2xl bg-[#09090b]/60 backdrop-blur-md shadow-[0_0_0_1px_rgba(34,211,238,0.02),0_8px_20px_rgba(0,0,0,0.4)] text-center transition-colors hover:border-cyan-400/30">
               <div className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br from-cyan-400 to-lime-400 font-mono tracking-tight">{s.val}</div>
@@ -389,6 +389,57 @@ export function ResultNeon({
             )}
           </div>
         </div>
+
+        {/* Prompt Tab — ROLLOUT and ADMIN only */}
+        {promptTab?.visible && (
+          <div className="mt-8 rounded-3xl border border-violet-400/20 bg-[#09090b]/60 backdrop-blur-md p-6 md:p-8">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center border border-violet-400/30 bg-violet-400/10">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M2 4h12M2 8h8M2 12h5" stroke="#a78bfa" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+              </div>
+              <h2 className="text-sm font-bold uppercase tracking-[0.15em] text-violet-400">Prompt Remaster</h2>
+              <span className="px-2 py-0.5 rounded border border-violet-400/30 text-[8px] font-bold text-violet-400 uppercase tracking-widest bg-violet-400/10">AI</span>
+            </div>
+            <p className="text-xs text-white/40 mb-5">
+              Describe how you&apos;d like the mastering changed. A new master will be generated from your original audio.
+            </p>
+            <textarea
+              value={promptTab.prompt}
+              onChange={(e) => promptTab.onPromptChange(e.target.value)}
+              disabled={promptTab.loading}
+              placeholder="e.g. Make it warmer and more punchy, boost the low-end slightly, widen the stereo field…"
+              rows={4}
+              className="w-full resize-none rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:border-violet-400/50 focus:ring-1 focus:ring-violet-400/20 disabled:opacity-50 transition-colors"
+            />
+            {promptTab.error && (
+              <p className="mt-2 text-xs text-rose-400">{promptTab.error}</p>
+            )}
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={promptTab.onSubmit}
+                disabled={promptTab.loading || !promptTab.prompt.trim()}
+                className="flex items-center gap-2 px-6 py-3 text-sm font-bold text-[#09090b] bg-violet-400 rounded-xl hover:bg-violet-300 shadow-[0_0_20px_rgba(167,139,250,0.3)] hover:shadow-[0_0_30px_rgba(167,139,250,0.5)] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                {promptTab.loading ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border border-[#09090b]/30 border-t-[#09090b]" />
+                    Starting…
+                  </>
+                ) : (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M7 1.5l1.4 4.3H13l-3.7 2.7 1.4 4.3L7 10.2l-3.7 2.6 1.4-4.3L1 5.8h4.6z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/>
+                    </svg>
+                    Remaster with AI
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
 
       </main>
     </div>

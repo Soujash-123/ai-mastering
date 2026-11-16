@@ -193,6 +193,9 @@ class CompactContextBuilder:
                 "meta": {
                     "target_platform": str(full_analysis.get("target_platform", ""))[:64],
                     "user_intent": str(full_analysis.get("user_intent", ""))[:intent_cap],
+                    "style_family": str(full_analysis.get("style_family") or "auto"),
+                    "style_guidance": str(full_analysis.get("style_guidance") or "")[:400],
+                    "source_lossy": bool(full_analysis.get("source_lossy", False)),
                 },
             }
             if include_anchors:

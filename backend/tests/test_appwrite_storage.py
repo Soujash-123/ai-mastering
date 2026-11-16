@@ -116,11 +116,20 @@ def fake_appwrite(monkeypatch, settings_override):
     return fake
 
 
+def _write_real_wav(path: Path, seconds: float = 0.5) -> Path:
+    """Masters are now FLAC-encoded before upload, so they must be real audio."""
+    import numpy as np
+    import soundfile as sf
+
+    t = np.arange(int(44100 * seconds)) / 44100
+    y = (0.2 * np.sin(2 * np.pi * 440 * t)).astype("float32")
+    sf.write(str(path), np.stack([y, y], axis=1), 44100, subtype="PCM_24")
+    return path
+
+
 @pytest.fixture
 def master_file(tmp_path) -> Path:
-    p = tmp_path / "master.wav"
-    p.write_bytes(b"RIFF....WAVEfmt ")
-    return p
+    return _write_real_wav(tmp_path / "master.wav")
 
 
 def _not_found() -> AppwriteException:
@@ -448,7 +457,7 @@ def test_ephemeral_job_persists_appwrite_tracking(fake_appwrite, run_async):
             user_role="ADMIN",
         )
         master = rec.input_path.parent / "master.wav"
-        master.write_bytes(b"RIFF....WAVEfmt ")
+        _write_real_wav(master)
 
         updates = aws.upload_master_for_job(rec.job_id, master)
         await job_store.update(rec.job_id, master_path=master, **updates)
@@ -473,7 +482,7 @@ def test_delete_job_removes_cloud_master(fake_appwrite, run_async):
             get_settings().data_dir, ephemeral=False, user_id=None, user_role="ADMIN"
         )
         master = rec.input_path.parent / "master.wav"
-        master.write_bytes(b"RIFF....WAVEfmt ")
+        _write_real_wav(master)
         file_id = aws.upload_master_for_job(rec.job_id, master)["appwrite_file_id"]
         await job_store.update(
             rec.job_id, master_path=master, appwrite_state="uploaded", appwrite_file_id=file_id
@@ -503,7 +512,7 @@ def test_result_reports_master_state(client, seed_job, fake_appwrite):
 
     assert body["master"] is not None
     assert body["master"]["state"] == "uploaded"
-    assert body["master"]["filename"] == "master.wav"
+    assert body["master"]["filename"] == "master.flac"
     assert body["master"]["file_id"]
     assert body["master"]["expires_at"]
     assert "token=secret-" in body["master"]["download_url"]
@@ -525,7 +534,7 @@ def test_download_route_streams_from_appwrite(client, seed_job, fake_appwrite):
     resp = client.get(f"/api/jobs/{rec.job_id}/master/download", follow_redirects=False)
 
     assert resp.status_code == 200
-    assert resp.headers["content-disposition"].endswith('master.wav"')
+    assert resp.headers["content-disposition"].endswith('master.flac"')
     assert resp.content == b"RIFFfakewavdata"
 
 
@@ -541,7 +550,7 @@ def test_download_route_proxies_when_no_token(client, seed_job, fake_appwrite):
     resp = client.get(f"/api/jobs/{rec.job_id}/master/download")
 
     assert resp.status_code == 200
-    assert resp.headers["content-type"] == "audio/wav"
+    assert resp.headers["content-type"] == "audio/flac"
     assert resp.content == b"RIFFfakewavdata"
     assert meta["appwrite_file_id"] in fake_appwrite.downloaded
 
@@ -550,7 +559,8 @@ def test_download_route_falls_back_to_local_when_unconfigured(client, seed_job):
     rec = seed_job(with_master=True)
     resp = client.get(f"/api/jobs/{rec.job_id}/master/download")
     assert resp.status_code == 200
-    assert resp.headers["content-type"] == "audio/wav"
+    assert resp.headers["content-type"] == "audio/flac"
+    assert resp.content[:4] == b"fLaC"
 
 
 def test_download_route_410_after_expiry(client, seed_job):

@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     appwrite_api_key: Optional[str] = None
     appwrite_bucket_id: Optional[str] = None
     appwrite_ttl_hours: int = 12
+    # Per-file limit of the Appwrite bucket/plan (Free plan: 50 MB). Masters are
+    # stored as FLAC sized to fit (see utils/audio_encode.py).
+    appwrite_max_file_bytes: int = 50_000_000
     # When a master's retention window closes, the local master and its exports
     # are purged alongside the Appwrite file. The user's original upload is kept
     # unless this is enabled.

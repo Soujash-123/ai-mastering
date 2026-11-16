@@ -31,4 +31,7 @@ export interface UploadProps {
   isDurationExceeded: boolean;
   PLATFORMS: { value: string; label: string }[];
   CREATIVE_INTENTS: { value: string; label: string }[];
+  styleFamily: string;
+  setStyleFamily: (val: string) => void;
+  STYLE_FAMILIES: { value: string; label: string; hint: string }[];
 }

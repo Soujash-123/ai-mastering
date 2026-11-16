@@ -26,6 +26,19 @@ const CREATIVE_INTENTS = [
   { value: "Competitive streaming loudness, maximize energy and presence.", label: "Loud" },
 ];
 
+// Style envelopes enforced by the backend safety layer (mastering/style_profiles.py).
+// Available to every tier.
+const STYLE_FAMILIES = [
+  { value: "auto", label: "Auto", hint: "General-purpose mastering" },
+  { value: "indian_classical", label: "Classical", hint: "Hindustani / Carnatic — keeps dynamics, drone and tabla natural" },
+  { value: "devotional", label: "Devotional", hint: "Bhajan / kirtan — warm, gentle, intimate" },
+  { value: "film_melodic", label: "Film song", hint: "Playback / melodic — clear, smooth vocals" },
+  { value: "bollywood_dance", label: "Bollywood / Dance", hint: "Punjabi / dance — loud, punchy dhol and bass" },
+  { value: "fusion_indie", label: "Fusion / Indie", hint: "Indian instruments with modern production" },
+];
+
+const ACCEPTED_EXTS = ["wav", "flac", "aiff", "aif", "m4a", "aac", "mp3", "ogg", "opus"];
+
 export default function UploadPage() {
   const router = useRouter();
   const [tier, setTierState] = useState<UserTier>("rollout");
@@ -41,6 +54,7 @@ export default function UploadPage() {
   const [error, setError] = useState<string | null>(null);
   const [platform, setPlatform] = useState("Spotify");
   const [intentValue, setIntentValue] = useState(CREATIVE_INTENTS[0].value);
+  const [styleFamily, setStyleFamily] = useState("auto");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileDuration, setFileDuration] = useState<number | null>(null);
@@ -55,8 +69,8 @@ export default function UploadPage() {
       if (!files?.length) return;
       const file = files[0];
       const ext = file.name.toLowerCase().split(".").pop();
-      if (ext !== "wav" && ext !== "flac") {
-        setError("Only .wav and .flac files are accepted.");
+      if (!ext || !ACCEPTED_EXTS.includes(ext)) {
+        setError("Upload a WAV, FLAC, AIFF, M4A, MP3, AAC, OGG or Opus file.");
         return;
       }
       setError(null);
@@ -79,14 +93,14 @@ export default function UploadPage() {
     try {
       await new Promise<void>((r) => setTimeout(r, 40));
       setProgress(0.3);
-      const { job_id } = await createJob(selectedFile, platform, intentValue);
+      const { job_id } = await createJob(selectedFile, platform, intentValue, true, styleFamily);
       setProgress(1);
       router.push(`/processing/${job_id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
       setBusy(false);
     }
-  }, [selectedFile, platform, intentValue, router, isDurationExceeded]);
+  }, [selectedFile, platform, intentValue, styleFamily, router, isDurationExceeded]);
 
   const handleTierSelect = useCallback((t: UserTier) => {
     setTier(t);
@@ -151,6 +165,9 @@ export default function UploadPage() {
         isDurationExceeded={isDurationExceeded}
         PLATFORMS={PLATFORMS}
         CREATIVE_INTENTS={CREATIVE_INTENTS}
+        styleFamily={styleFamily}
+        setStyleFamily={setStyleFamily}
+        STYLE_FAMILIES={STYLE_FAMILIES}
       />
     </>
   );

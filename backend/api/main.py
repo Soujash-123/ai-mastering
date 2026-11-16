@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import logging
 import sys
 from datetime import datetime, timezone
@@ -18,6 +19,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
+from api.master_ops import finish_publish, publish_master, render_lock
 from api.result_builder import build_cloud_job_result, build_job_result, build_ws_result_payload
 from api.schemas import (
     FinalizeRequest,
@@ -27,6 +29,7 @@ from api.schemas import (
     JobStatusResponse,
     PreviewRequest,
     PreviewResponse,
+    RemasterRequest,
 )
 from auth.admin_router import router as admin_router
 from auth.database import init_db
@@ -36,8 +39,9 @@ from auth.models import User
 from auth.permissions import duration_limit_message, max_upload_duration_sec
 from auth.router import router as auth_router
 from auth.schemas import UserRole
-from exports.pcm_export import export_all_artifacts
 from mastering.chain import playback_wav_path
+from mastering.style_profiles import normalize_style_family
+from studio.router import invalidate_studio_snapshot, router as studio_router
 from mastering.preview import (
     load_render_context,
     pick_preview_window,
@@ -45,16 +49,18 @@ from mastering.preview import (
     sanitize_overrides,
     update_render_context_params,
 )
-from services.job_store import job_store, delete_job_by_id, schedule_delete
+from services.job_store import job_store, delete_job_by_id, schedule_delete, touch_job
 from services.appwrite_storage import (
     AppwriteStorageError,
     jobs_root,
-    refresh_master_for_job,
     load_pending_appwrite_metadata,
     find_master_metadata,
     start_appwrite_cleanup_loop,
+    start_appwrite_keepalive_loop,
     stream_master,
 )
+from utils.audio_decode import ALLOWED_UPLOAD_SUFFIXES, decode_audio_file
+from utils.audio_encode import ensure_master_flac
 from utils.config import get_settings
 from utils.log import configure_logging
 from workers.processor import process_job
@@ -74,9 +80,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+_JOB_PATH_RE = re.compile(r"^/api/jobs/([0-9a-fA-F-]{32,36})(?:/|$)")
+
+
+@app.middleware("http")
+async def _keep_active_jobs_alive(request, call_next):
+    """Any use of a job (result page, Mastering Table, playback, downloads)
+    postpones its ephemeral cleanup, so a job is only removed after it has been
+    idle for EPHEMERAL_IDLE_SECS rather than a fixed time after processing."""
+    if request.method != "DELETE":
+        m = _JOB_PATH_RE.match(request.url.path)
+        if m:
+            try:
+                await touch_job(m.group(1))
+            except Exception:  # noqa: BLE001 - never fail a request over cleanup bookkeeping
+                LOGGER.exception("touch_job failed for %s", m.group(1))
+    return await call_next(request)
+
+
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(early_access_router)
+app.include_router(studio_router)
 
 
 @app.on_event("startup")
@@ -87,19 +112,15 @@ async def _startup() -> None:
         asyncio.create_task(start_appwrite_cleanup_loop())
     except Exception:  # noqa: BLE001
         LOGGER.exception("Failed to schedule Appwrite cleanup loop")
+    # Daily ping so Appwrite doesn't pause the project for inactivity.
+    try:
+        asyncio.create_task(start_appwrite_keepalive_loop())
+    except Exception:  # noqa: BLE001
+        LOGGER.exception("Failed to schedule Appwrite keepalive loop")
 
-_ALLOWED = frozenset({".wav", ".flac"})
+_ALLOWED = ALLOWED_UPLOAD_SUFFIXES
 
-# Serialize re-renders per job so slider spam can't stack renders.
-_render_locks: dict[str, asyncio.Lock] = {}
-
-
-def _render_lock(job_id: str) -> asyncio.Lock:
-    lock = _render_locks.get(job_id)
-    if lock is None:
-        lock = asyncio.Lock()
-        _render_locks[job_id] = lock
-    return lock
+_render_lock = render_lock
 
 
 def _load_ctx_or_409(rec) -> dict:
@@ -133,7 +154,7 @@ def _master_expired(rec) -> bool:
 # Artifacts that are removed from disk when a master's window closes, so they
 # must stop being served the moment the window closes (not merely once the
 # cleanup loop next runs).
-_EXPIRY_GATED_FILES = ("master.wav", "master_playback.wav")
+_EXPIRY_GATED_FILES = ("master.wav", "master.flac", "master_playback.wav", "master_ai.wav", "master_ai_playback.wav")
 _EXPIRY_GATED_DIRS = ("exports", "streaming_sim")
 
 
@@ -158,8 +179,10 @@ def _artifact_expired(rec, rel_path: str) -> bool:
     return False
 
 
-def _normalize_upload_to_job_wav(src: bytes, dest_wav: Path, original_suffix: str) -> None:
-    """Decode WAV/FLAC with libsndfile (soundfile), write canonical float PCM WAV for the pipeline."""
+def _normalize_upload_to_job_wav(src: bytes, dest_wav: Path, original_suffix: str) -> bool:
+    """Decode the upload (WAV/FLAC/AIFF, or phone formats like M4A/MP3/Opus) and
+    write the canonical 24-bit PCM WAV the pipeline reads. Returns True when the
+    source was lossy."""
     import tempfile
 
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=original_suffix)
@@ -167,15 +190,12 @@ def _normalize_upload_to_job_wav(src: bytes, dest_wav: Path, original_suffix: st
     try:
         tmp.write(src)
         tmp.close()
-        y, sr = sf.read(str(tmp_path), always_2d=True, dtype="float32")
-    except Exception as exc:
-        raise ValueError(f"Could not read audio (WAV or FLAC required): {exc}") from exc
+        decoded = decode_audio_file(tmp_path, original_suffix)
     finally:
         if tmp_path.exists():
             tmp_path.unlink(missing_ok=True)
 
-    if y.ndim != 2 or y.shape[1] < 1:
-        raise ValueError("Invalid channel layout")
+    y, sr = decoded.samples, decoded.sample_rate
     if y.shape[1] == 1:
         y = np.column_stack([y[:, 0], y[:, 0]])
     elif y.shape[1] > 2:
@@ -183,6 +203,7 @@ def _normalize_upload_to_job_wav(src: bytes, dest_wav: Path, original_suffix: st
     y = np.clip(y, -1.0, 1.0).astype(np.float32)
     dest_wav.parent.mkdir(parents=True, exist_ok=True)
     sf.write(str(dest_wav), y, sr, subtype="PCM_24")
+    return decoded.lossy
 
 
 @app.post("/api/jobs", response_model=JobCreateResponse)
@@ -193,6 +214,7 @@ async def create_job(
     target_platform: str = Form("Spotify"),
     user_intent: str = Form(""),
     ephemeral: bool = Form(False),
+    style_family: str = Form("auto"),
 ) -> JobCreateResponse:
     if not file.filename:
         raise HTTPException(status_code=400, detail="Missing filename")
@@ -201,8 +223,14 @@ async def create_job(
     if suffix not in _ALLOWED:
         raise HTTPException(
             status_code=400,
-            detail="Only WAV and FLAC uploads are supported (no transcoding pipeline).",
+            detail="Unsupported file type. Upload WAV, FLAC, AIFF, M4A, MP3, AAC, OGG or Opus.",
         )
+    # Style envelope is available to every tier (ROLLOUT, EARLY_ACCESS, ADMIN):
+    # it only narrows the safety limits, it never unlocks advanced overrides.
+    try:
+        style_family = normalize_style_family(style_family)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     rec = await job_store.create_job(
         settings.data_dir,
@@ -211,12 +239,16 @@ async def create_job(
         user_role=user.role,
     )
     rec.original_filename = file.filename
+    rec.style_family = style_family
+    rec.source_format = suffix.lstrip(".")
     assert rec.input_path is not None
 
     try:
         content = await file.read()
         await file.close()
-        _normalize_upload_to_job_wav(content, rec.input_path, suffix)
+        rec.source_lossy = await asyncio.to_thread(
+            _normalize_upload_to_job_wav, content, rec.input_path, suffix
+        )
     except ValueError as exc:
         await delete_job_by_id(rec.job_id)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -401,48 +433,12 @@ async def _run_finalize(job_id: str, overrides: dict[str, float]) -> None:
                 None,
             )
             update_render_context_params(job_dir, meta["params"])
+            # A re-finalized AI master supersedes any Mastering Table snapshot:
+            # the Table's live layer now sits on top of this new master.
+            invalidate_studio_snapshot(job_dir)
+            updates = await publish_master(rec, master_path)
 
-            # Regenerate platform exports + streaming simulations from the new master.
-            is_rollout = rec.user_role == UserRole.ROLLOUT.value
-            exports: list[dict[str, str]] = []
-            notes: list[str] = []
-            if not is_rollout:
-                exports_list, notes = await asyncio.to_thread(
-                    export_all_artifacts,
-                    master_path,
-                    job_dir / "exports",
-                    job_dir / "streaming_sim",
-                )
-                for item in exports_list:
-                    p = Path(item["path"]).resolve()
-                    rel = p.relative_to(job_dir.resolve()).as_posix()
-                    exports.append({**item, "download_url": f"/api/jobs/{job_id}/artifacts/{rel}"})
-
-            # Replace the stored cloud master with the re-rendered one (delete
-            # old Appwrite file, upload new, fresh retention window). Not gated
-            # on `ephemeral` for the same reason as the initial upload.
-            appwrite_updates: dict[str, Any] = {}
-            if master_path.exists():
-                appwrite_updates = (
-                    await asyncio.to_thread(
-                        refresh_master_for_job,
-                        job_id,
-                        master_path,
-                        rec.appwrite_file_id,
-                        rec.original_filename,
-                    )
-                ) or {}
-
-        await job_store.update(
-            job_id,
-            master_path=master_path,
-            exports=exports,
-            streaming_notes=notes,
-            message="Done",
-            finalizing=False,
-            finalize_error=None,
-            **appwrite_updates,
-        )
+        await finish_publish(job_id, updates)
     except Exception as exc:  # noqa: BLE001 - keep the old master + report the failure
         LOGGER.exception("Job %s finalize failed", job_id)
         try:
@@ -505,6 +501,15 @@ async def job_file(job_id: str, kind: str) -> FileResponse:
     return FileResponse(path, media_type=media, filename=path.name)
 
 
+def _audio_media_type(filename: str | None) -> str:
+    return "audio/flac" if (filename or "").lower().endswith(".flac") else "audio/wav"
+
+
+def _download_name(rec, suffix: str = ".flac") -> str:
+    stem = Path(rec.original_filename or "").stem
+    return f"{stem}_mastered{suffix}" if stem else f"master{suffix}"
+
+
 @app.get("/api/jobs/{job_id}/master/download")
 async def download_master(job_id: str):
     """Canonical master download.
@@ -527,14 +532,11 @@ async def download_master(job_id: str):
         except AppwriteStorageError as exc:
             LOGGER.warning("Cloud master unavailable for job %s: %s", job_id, exc)
             raise HTTPException(status_code=404, detail="Mastered audio is not available") from exc
+        name = pending.get("filename") or "master.flac"
         return StreamingResponse(
             stream,
-            media_type="audio/wav",
-            headers={
-                "Content-Disposition": (
-                    f'attachment; filename="{pending.get("filename") or "master.wav"}"'
-                )
-            },
+            media_type=_audio_media_type(name),
+            headers={"Content-Disposition": f'attachment; filename="{name}"'},
         )
     if _master_expired(rec):
         raise HTTPException(status_code=410, detail="The mastered audio has expired")
@@ -547,23 +549,20 @@ async def download_master(job_id: str):
         except AppwriteStorageError as exc:
             LOGGER.warning("Cloud master unavailable for job %s: %s", job_id, exc)
         else:
+            name = rec.appwrite_filename or _download_name(rec)
             return StreamingResponse(
                 stream,
-                media_type="audio/wav",
-                headers={
-                    "Content-Disposition": (
-                        f'attachment; filename="{rec.appwrite_filename or "master.wav"}"'
-                    )
-                },
+                media_type=_audio_media_type(name),
+                headers={"Content-Disposition": f'attachment; filename="{name}"'},
             )
 
-    # Appwrite inactive or upload failed: fall back to the local canonical WAV.
+    # Appwrite inactive or upload failed: deliver the same FLAC from the local
+    # master (cached; re-encoded only when the master changed).
     if rec.master_path.exists():
-        return FileResponse(
-            rec.master_path,
-            media_type="audio/wav",
-            filename=rec.appwrite_filename or "master.wav",
+        encoded = await asyncio.to_thread(
+            ensure_master_flac, rec.master_path, settings.appwrite_max_file_bytes
         )
+        return FileResponse(encoded.path, media_type="audio/flac", filename=_download_name(rec))
     raise HTTPException(status_code=404, detail="Mastered audio is not available")
 
 
@@ -580,6 +579,52 @@ async def delete_job(job_id: str) -> dict[str, str]:
         return {"status": "not_found"}
     await delete_job_by_id(job_id)
     return {"status": "deleted"}
+
+
+@app.post("/api/jobs/{job_id}/remaster", response_model=JobCreateResponse)
+async def remaster_job(
+    job_id: str,
+    payload: RemasterRequest,
+    background_tasks: BackgroundTasks,
+    user: Annotated[User, Depends(require_roles(UserRole.ADMIN, UserRole.ROLLOUT))],
+) -> JobCreateResponse:
+    """Re-master the original audio with a new natural-language prompt.
+
+    Available to ROLLOUT and ADMIN users. Creates a fresh job from the same
+    input audio so the original result is left untouched.
+    """
+    import shutil as _shutil
+
+    rec = await job_store.get(job_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if rec.status != JobStatus.completed:
+        raise HTTPException(status_code=409, detail="Job not completed")
+    if not rec.input_path or not rec.input_path.exists():
+        raise HTTPException(status_code=409, detail="Original audio is no longer available")
+
+    new_rec = await job_store.create_job(
+        settings.data_dir,
+        ephemeral=True,
+        user_id=user.id,
+        user_role=user.role,
+    )
+    new_rec.original_filename = rec.original_filename
+    new_rec.source_format = rec.source_format
+    new_rec.source_lossy = rec.source_lossy
+    if payload.style_family is not None:
+        try:
+            new_rec.style_family = normalize_style_family(payload.style_family)
+        except ValueError as exc:
+            await delete_job_by_id(new_rec.job_id)
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    else:
+        new_rec.style_family = rec.style_family
+    assert new_rec.input_path is not None
+    await asyncio.to_thread(_shutil.copy2, str(rec.input_path), str(new_rec.input_path))
+
+    background_tasks.add_task(process_job, new_rec.job_id, payload.target_platform, payload.prompt)
+    return JobCreateResponse(job_id=new_rec.job_id)
 
 
 @app.websocket("/ws/jobs/{job_id}")

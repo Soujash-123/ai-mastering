@@ -59,12 +59,14 @@ from appwrite.query import Query
 from appwrite.services.storage import Storage
 from appwrite.services.tokens import Tokens
 
+from utils.audio_encode import ensure_master_flac
 from utils.config import get_settings
 
 logger = logging.getLogger(__name__)
 
 MASTERS_ROOT_FOLDER = "masters"
 CLEANUP_INTERVAL_SECONDS = 15 * 60  # periodic cleanup pass every 15 minutes
+KEEPALIVE_INTERVAL_SECONDS = 24 * 60 * 60  # ping Appwrite daily so the project isn't paused
 STREAM_CHUNK_BYTES = 512 * 1024  # re-chunk size for the proxy download fallback
 PENDING_METADATA_FILENAME = "appwrite_pending.json"
 
@@ -82,7 +84,7 @@ APPWRITE_META_KEYS = (
 # Local paths removed when a master's retention window closes. `input.wav` is
 # the user's own upload and is only removed when explicitly opted in.
 _PURGE_LOCAL_DIRS = ("exports", "streaming_sim")
-_PURGE_LOCAL_FILES = ("master.wav", "master_playback.wav")
+_PURGE_LOCAL_FILES = ("master.wav", "master.flac", "master_playback.wav", "master_ai.wav", "master_ai_playback.wav")
 
 # Appwrite "folder" segments must be safe path components.
 _SAFE_JOB_ID_RE = re.compile(r"^[A-Za-z0-9_.-]{1,80}$")
@@ -246,11 +248,15 @@ def upload_master(
 
     ttl = settings.appwrite_ttl_hours if ttl_hours is None else ttl_hours
     folder = f"{MASTERS_ROOT_FOLDER}/{job_id}"
+    # Store the delivery FLAC (24-bit when it fits the bucket limit, else 16-bit
+    # dithered), never the uncompressed WAV: a 5-min 24-bit WAV is ~80 MB.
+    encoded = ensure_master_flac(Path(master_path), settings.appwrite_max_file_bytes)
     original_stem = Path(original_filename or "").stem
-    stored_name = f"{original_stem}_mastered_{job_id}.wav" if original_stem else "master.wav"
-    upload_path = Path(master_path).with_name(stored_name)
-    if upload_path != Path(master_path):
-        shutil.copyfile(master_path, upload_path)
+    stored_name = f"{original_stem}_mastered_{job_id}.flac" if original_stem else "master.flac"
+    upload_path = encoded.path.with_name(stored_name)
+    if upload_path != encoded.path:
+        shutil.copyfile(encoded.path, upload_path)
+    master_path = encoded.path  # cleanup below compares against the cached FLAC
     file_id = ID.unique()
 
     try:
@@ -292,10 +298,12 @@ def upload_master(
         upload_path.unlink(missing_ok=True)
 
     logger.info(
-        "Master uploaded to Appwrite (job=%s, file=%s, folder=%s, expires=%s)",
+        "Master uploaded to Appwrite (job=%s, file=%s, folder=%s, %d-bit FLAC %.1f MB, expires=%s)",
         job_id,
         uploaded.id,
         uploaded.folder or folder,
+        encoded.bit_depth,
+        encoded.size_bytes / 1e6,
         expires_at.isoformat(),
     )
     return {
@@ -647,3 +655,31 @@ async def start_appwrite_cleanup_loop() -> None:
             await run_appwrite_cleanup_once()
         except Exception:  # noqa: BLE001
             logger.exception("Appwrite cleanup pass failed")
+
+
+def ping_appwrite() -> bool:
+    """Make a cheap authenticated API call so Appwrite counts the project as active."""
+    storage = _storage()
+    if storage is None:
+        return False
+    try:
+        storage.get_bucket(get_settings().appwrite_bucket_id)
+    except AppwriteException as exc:
+        logger.warning("Appwrite keepalive failed: %s", _sanitized_error(exc))
+        return False
+    logger.info("Appwrite keepalive ok")
+    return True
+
+
+async def start_appwrite_keepalive_loop(
+    interval_seconds: float = KEEPALIVE_INTERVAL_SECONDS,
+) -> None:
+    """Ping Appwrite at startup and then every ``interval_seconds`` (default daily)."""
+    if not appwrite_configured():
+        return
+    while True:
+        try:
+            await asyncio.to_thread(ping_appwrite)
+        except Exception:  # noqa: BLE001
+            logger.exception("Appwrite keepalive pass failed")
+        await asyncio.sleep(interval_seconds)

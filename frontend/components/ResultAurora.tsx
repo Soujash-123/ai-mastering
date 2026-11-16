@@ -58,6 +58,14 @@ export interface ResultProps {
   liveTargetLufs?: string | null;
   controlPanel?: React.ReactNode;
   isFinalized?: boolean;
+  promptTab?: {
+    visible: boolean;
+    prompt: string;
+    onPromptChange: (v: string) => void;
+    onSubmit: () => void;
+    loading: boolean;
+    error: string | null;
+  };
 }
 
 export function ResultAurora({

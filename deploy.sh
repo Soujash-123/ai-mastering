@@ -104,6 +104,23 @@ show_status() {
     log INFO "API health: http://localhost:8000/api/health"
 }
 
+install_keepalive_cron() {
+    # Daily Appwrite ping so the project isn't paused for inactivity.
+    # Idempotent: replaces any previous entry tagged with the marker below.
+    local script="${SCRIPT_DIR}/scripts/appwrite_keepalive.sh"
+    local marker="# kord-appwrite-keepalive"
+    local entry="${KEEPALIVE_CRON_SCHEDULE:-17 3 * * *} ${script} >> ${SCRIPT_DIR}/appwrite-keepalive.log 2>&1 ${marker}"
+
+    if ! command -v crontab >/dev/null 2>&1; then
+        log WARNING "crontab not available; skipping Appwrite keepalive cron"
+        return 0
+    fi
+
+    chmod +x "${script}"
+    { crontab -l 2>/dev/null | grep -vF "${marker}" || true; echo "${entry}"; } | crontab -
+    log INFO "Installed Appwrite keepalive cron: ${entry}"
+}
+
 main() {
     log INFO "Starting deployment"
     validate_prerequisites
@@ -111,6 +128,7 @@ main() {
     build_images
     start_services
     wait_for_services
+    install_keepalive_cron || log WARNING "Could not install Appwrite keepalive cron"
     show_status
 }
 

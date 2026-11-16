@@ -102,3 +102,10 @@ class PreviewResponse(BaseModel):
 
 class FinalizeRequest(BaseModel):
     overrides: dict[str, float] = Field(default_factory=dict)
+
+
+class RemasterRequest(BaseModel):
+    prompt: str = Field(min_length=1, max_length=2000)
+    target_platform: str = Field(default="Spotify")
+    # None = keep the original job's style envelope.
+    style_family: Optional[str] = Field(default=None)

@@ -88,6 +88,15 @@ export function canAccessSimulations(role: UserRole): boolean {
   return canAccessFullResult(role);
 }
 
+/** Mastering Table (BETA): EARLY_ACCESS + ADMIN only (see Access_RULE.md). */
+export function canAccessMasteringTable(role: UserRole): boolean {
+  return role === "ADMIN" || role === "EARLY_ACCESS";
+}
+
+export function canUsePromptTab(role: UserRole): boolean {
+  return role === "ADMIN" || role === "ROLLOUT";
+}
+
 export function durationLimitMessage(role: UserRole): string {
   if (role === "ROLLOUT") return "Rollout allows tracks up to 2 minutes.";
   if (role === "EARLY_ACCESS") return "Early Access allows tracks up to 5 minutes.";

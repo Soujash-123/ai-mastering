@@ -278,7 +278,7 @@ export function UploadAurora({
             <input
               ref={inputRef}
               type="file"
-              accept=".wav,.flac,audio/wav,audio/flac,audio/x-flac"
+              accept=".wav,.flac,.aiff,.aif,.m4a,.aac,.mp3,.ogg,.opus,audio/*"
               className="hidden"
               onChange={(e) => void onFiles(e.target.files)}
             />

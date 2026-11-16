@@ -111,11 +111,18 @@ export function masterDownloadUrl(
   return cacheBust === undefined ? base : `${base}?v=${cacheBust}`;
 }
 
-export async function createJob(file: File, targetPlatform: string, userIntent: string, ephemeral = true) {
+export async function createJob(
+  file: File,
+  targetPlatform: string,
+  userIntent: string,
+  ephemeral = true,
+  styleFamily = "auto",
+) {
   const fd = new FormData();
   fd.append("file", file);
   fd.append("target_platform", targetPlatform);
   fd.append("user_intent", userIntent);
+  fd.append("style_family", styleFamily);
   fd.append("ephemeral", String(ephemeral));
   const res = await fetch(apiUrl("/api/jobs"), {
     method: "POST",
@@ -185,6 +192,20 @@ export function wsUrl(path: string): string {
   if (typeof window === "undefined") return path;
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
   return `${proto}//${window.location.host}${path}`;
+}
+
+export async function remasterJob(
+  jobId: string,
+  prompt: string,
+  targetPlatform = "Spotify",
+): Promise<{ job_id: string }> {
+  const res = await fetch(apiUrl(`/api/jobs/${jobId}/remaster`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ prompt, target_platform: targetPlatform }),
+  });
+  if (!res.ok) throw new Error(await parseApiError(res));
+  return (await res.json()) as { job_id: string };
 }
 
 export async function deleteJob(jobId: string): Promise<void> {

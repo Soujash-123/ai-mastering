@@ -6,9 +6,9 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { MemoryProfilePanel } from "@/components/debug/MemoryProfilePanel";
 import { LeaveStudioModal } from "@/components/result/LeaveStudioModal";
 import { DSPControlPanel, type PreviewMode } from "@/components/result/DSPControlPanel";
-import { apiUrl, deleteJob, fetchResult, finalizeJob, masterDownloadUrl, previewJob, type JobResult } from "@/lib/api";
-import { canAccessFullResult } from "@/lib/auth";
-import { getTier, getTierConfig } from "@/lib/tier";
+import { apiUrl, deleteJob, fetchResult, finalizeJob, masterDownloadUrl, previewJob, remasterJob, type JobResult } from "@/lib/api";
+import { canAccessFullResult, canAccessMasteringTable, canUsePromptTab } from "@/lib/auth";
+import { getTierConfig, type UserTier } from "@/lib/tier";
 import { extractBaseParams, DSP_PARAM_KEYS } from "@/lib/dsp";
 import { ResultNeon } from "@/components/ResultNeon";
 
@@ -73,8 +73,11 @@ export default function ResultPage() {
   const { user } = useAuth();
   const jobId = params.jobId;
   const fullAccess = user ? canAccessFullResult(user.role) : false;
-  const tier = getTier();
-  const tierCfg = getTierConfig(tier);
+  // ADMIN and EARLY_ACCESS always get the full feature tier regardless of localStorage.
+  const effectiveTier: UserTier = (user?.role === "ADMIN" || user?.role === "EARLY_ACCESS") ? "early_access" : "rollout";
+  const tierCfg = getTierConfig(effectiveTier);
+  const showPromptTab = user ? canUsePromptTab(user.role) : false;
+  const showMasteringTable = user ? canAccessMasteringTable(user.role) : false;
 
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [data, setData] = useState<JobResult | null>(null);
@@ -104,6 +107,11 @@ export default function ResultPage() {
   const seqRef = useRef(0);
   const currentTimeRef = useRef(0);
   const finalizeHandledRef = useRef(false);
+
+  // Prompt tab state
+  const [promptText, setPromptText] = useState("");
+  const [promptLoading, setPromptLoading] = useState(false);
+  const [promptError, setPromptError] = useState<string | null>(null);
 
   const canDsp = fullAccess && !!data?.dsp_params;
   const analyzedDuration = useMemo(() => {
@@ -313,6 +321,20 @@ export default function ResultPage() {
     }
   }, [data, finalizing, rendering, jobId, overrides]);
 
+  const handleRemaster = useCallback(async () => {
+    if (!promptText.trim() || promptLoading) return;
+    setPromptLoading(true);
+    setPromptError(null);
+    try {
+      const { job_id } = await remasterJob(jobId, promptText.trim());
+      sessionStorage.removeItem(`kord_result_${jobId}`);
+      router.push(`/processing/${job_id}`);
+    } catch (e) {
+      setPromptError(e instanceof Error ? e.message : "Remaster failed");
+      setPromptLoading(false);
+    }
+  }, [promptText, promptLoading, jobId, router]);
+
   // Poll /result while a background finalize is in flight. Once `finalizing`
   // flips to false the new master is committed, so swap the player/download to
   // it (fresh cache-buster) — or surface `finalize_error` if it failed.
@@ -448,8 +470,41 @@ export default function ResultPage() {
             />
           ) : undefined
           */
-          undefined
+          showMasteringTable ? (
+            <button
+              type="button"
+              onClick={() => router.push(`/studio/${jobId}`)}
+              className="group flex w-full items-center gap-4 rounded-2xl border border-cyan-400/20 bg-gradient-to-r from-cyan-400/[0.07] via-violet-400/[0.05] to-transparent px-5 py-4 text-left transition hover:border-cyan-400/40 hover:shadow-[0_0_32px_rgba(34,211,238,0.12)]"
+            >
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-400/10 text-cyan-300">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                  <circle cx="5" cy="13" r="2.3" stroke="currentColor" strokeWidth="1.4" />
+                  <circle cx="10" cy="7" r="2.3" stroke="currentColor" strokeWidth="1.4" />
+                  <circle cx="15" cy="12" r="2.3" stroke="currentColor" strokeWidth="1.4" />
+                  <path d="M5 3v7.7M5 15.3V17M10 3v1.7M10 9.3V17M15 3v6.7M15 14.3V17" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                </svg>
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-bold text-white">Open in Mastering Table</p>
+                  <span className="rounded-md bg-gradient-to-r from-violet-400 to-cyan-400 px-1.5 py-0.5 text-[9px] font-black tracking-widest text-black">BETA</span>
+                </div>
+                <p className="mt-0.5 text-xs text-white/50">
+                  Fine-tune the AI master with live knobs, make any part louder, or just ask the Mastering Copilot.
+                </p>
+              </div>
+              <span className="text-cyan-300 transition group-hover:translate-x-1">→</span>
+            </button>
+          ) : undefined
         }
+        promptTab={{
+          visible: showPromptTab,
+          prompt: promptText,
+          onPromptChange: setPromptText,
+          onSubmit: handleRemaster,
+          loading: promptLoading,
+          error: promptError,
+        }}
       />
       {fullAccess && data.memory_profile && (
         <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 pb-10">

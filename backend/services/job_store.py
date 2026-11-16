@@ -35,6 +35,11 @@ class JobRecord:
     ephemeral: bool = False
     user_id: Optional[int] = None
     user_role: Optional[str] = None
+    # Mastering style envelope (see mastering/style_profiles.py) and what the
+    # user uploaded (e.g. "m4a"), so lossy phone sources are handled gently.
+    style_family: str = "auto"
+    source_format: Optional[str] = None
+    source_lossy: bool = False
     # Background /finalize state. Persisted so a reload while a finalize is in
     # flight can resume polling; reset on disk-load (work does not survive restarts).
     finalizing: bool = False
@@ -128,6 +133,7 @@ class JobStore:
                 if job_dir:
                     try:
                         meta = _record_to_dict(rec)
+                        _keep_freed_fields(job_dir / "metadata.json", meta)
                         with open(job_dir / "metadata.json", "w", encoding="utf-8") as fh:
                             json.dump(meta, fh)
                     except Exception:
@@ -157,6 +163,28 @@ class JobStore:
 
 
 job_store = JobStore()
+
+# Bulk fields freed from memory once a persistent job completes (see update()).
+_FREED_FIELDS = ("analysis", "raw_intent", "safe_intent", "report")
+
+
+def _keep_freed_fields(meta_path: Path, meta: dict) -> None:
+    """Don't let a post-completion update overwrite freed bulk fields with None.
+
+    After completion the in-memory record drops analysis/report/intents; any
+    later update (finalize, Mastering Table commit/revert) would otherwise
+    re-persist them as null and erase the song's analysis from disk.
+    """
+    if all(meta.get(k) is not None for k in _FREED_FIELDS) or not meta_path.exists():
+        return
+    try:
+        with open(meta_path, "r", encoding="utf-8") as fh:
+            prev = json.load(fh)
+    except Exception:
+        return
+    for k in _FREED_FIELDS:
+        if meta.get(k) is None and prev.get(k) is not None:
+            meta[k] = prev[k]
 
 
 def _persist_appwrite_only(job_dir: Path, rec: JobRecord) -> None:
@@ -223,7 +251,21 @@ async def delete_job_by_id(job_id: str) -> None:
     await _delete_job_impl(job_store, job_id)
 
 
-async def schedule_delete(job_id: str, delay_secs: int = 600) -> None:
+EPHEMERAL_IDLE_SECS = 600
+
+
+async def touch_job(job_id: str, delay_secs: float = EPHEMERAL_IDLE_SECS) -> None:
+    """Push back a pending ephemeral delete while the job is still being used.
+
+    Ephemeral jobs are scheduled for deletion once the processing WebSocket
+    closes. Without this, a user still working on the result page or in the
+    Mastering Table loses the job (and their master) mid-session.
+    """
+    if job_id in job_store._pending_deletes:
+        await schedule_delete(job_id, delay_secs=delay_secs)
+
+
+async def schedule_delete(job_id: str, delay_secs: float = 600) -> None:
     """Schedule deletion of a job after `delay_secs` seconds (default 10 min)."""
     async def _do() -> None:
         await asyncio.sleep(delay_secs)
@@ -269,6 +311,9 @@ def _record_to_dict(rec: JobRecord) -> dict:
         "ephemeral": rec.ephemeral,
         "user_id": rec.user_id,
         "user_role": rec.user_role,
+        "style_family": rec.style_family,
+        "source_format": rec.source_format,
+        "source_lossy": rec.source_lossy,
         "finalizing": rec.finalizing,
         "finalize_error": rec.finalize_error,
         "appwrite_state": rec.appwrite_state,
@@ -307,6 +352,9 @@ def _dict_to_record(d: dict) -> JobRecord:
         ephemeral=bool(d.get("ephemeral", False)),
         user_id=d.get("user_id"),
         user_role=d.get("user_role"),
+        style_family=d.get("style_family") or "auto",
+        source_format=d.get("source_format"),
+        source_lossy=bool(d.get("source_lossy", False)),
         finalizing=bool(d.get("finalizing", False)),
         finalize_error=d.get("finalize_error"),
         appwrite_state=d.get("appwrite_state", ""),

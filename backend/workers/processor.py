@@ -15,6 +15,7 @@ from llm.intent import generate_mastering_plan
 from mastering.chain import master_file
 from mastering.preview import save_render_context
 from mastering.safety import intent_to_safe_params
+from mastering.style_profiles import get_style_profile
 from services.job_store import job_store
 from services.appwrite_storage import upload_master_for_job
 from utils.config import get_settings
@@ -48,6 +49,12 @@ async def process_job(job_id: str, target_platform: str, user_intent: str) -> No
             analysis.get("duration_sec"),
             analysis.get("integrated_lufs"),
         )
+        style = get_style_profile(rec.style_family)
+        analysis["style_family"] = style.key
+        analysis["style_label"] = style.label
+        analysis["style_guidance"] = style.llm_guidance
+        analysis["source_format"] = rec.source_format
+        analysis["source_lossy"] = bool(rec.source_lossy)
         await job_store.update(job_id, analysis=analysis)
 
         await bump(JobStatus.reasoning, 0.35, "Generating adaptive mastering strategy…")
@@ -56,7 +63,12 @@ async def process_job(job_id: str, target_platform: str, user_intent: str) -> No
             intent, report, raw = await asyncio.to_thread(generate_mastering_plan, analysis)
         logger.info("Job %s: LLM strategy step completed", job_id)
         with memory_step("dsp_safety_mapping"):
-            safe_intent, params = intent_to_safe_params(intent, float(analysis.get("integrated_lufs", -14.0)))
+            safe_intent, params = intent_to_safe_params(
+                intent,
+                float(analysis.get("integrated_lufs", -14.0)),
+                style_family=style.key,
+                source_lossy=bool(rec.source_lossy),
+            )
             llm_modifiers = (
                 [s.model_dump() for s in safe_intent.sectional_processing]
                 if safe_intent.sectional_processing
@@ -66,8 +78,9 @@ async def process_job(job_id: str, target_platform: str, user_intent: str) -> No
             del analysis
             gc.collect()
         logger.info(
-            "Job %s: DSP safety mapping completed (target_lufs=%s, true_peak_ceiling_db=%s)",
+            "Job %s: DSP safety mapping completed (style=%s, target_lufs=%s, true_peak_ceiling_db=%s)",
             job_id,
+            style.key,
             params.target_lufs,
             params.true_peak_ceiling_db,
         )

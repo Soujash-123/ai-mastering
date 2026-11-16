@@ -40,7 +40,7 @@ def test_create_job_rejects_unsupported_extension(client, rollout_headers, sampl
     resp = client.post(
         "/api/jobs",
         headers=rollout_headers,
-        files={"file": ("song.mp3", sample_wav(), "audio/mpeg")},
+        files={"file": ("song.txt", sample_wav(), "text/plain")},
     )
     assert resp.status_code == 400
 

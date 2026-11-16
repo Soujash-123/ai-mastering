@@ -8,8 +8,10 @@ export function UploadNeon({
   showAdvanced, setShowAdvanced, selectedFile, setSelectedFile,
   fileDuration, setFileDuration, tier, showTierModal, setShowTierModal,
   tierCfg, handleTierSelect, onFiles, handleMaster, inputRef,
-  fmt, fmtDur, isDurationExceeded, PLATFORMS, CREATIVE_INTENTS
+  fmt, fmtDur, isDurationExceeded, PLATFORMS, CREATIVE_INTENTS,
+  styleFamily, setStyleFamily, STYLE_FAMILIES
 }: UploadProps) {
+  const activeStyle = STYLE_FAMILIES.find((s) => s.value === styleFamily) ?? STYLE_FAMILIES[0];
   return (
     <main className="relative overflow-hidden w-full h-full min-h-[calc(100vh-57px)] font-outfit">
       {/* Background elements */}
@@ -145,7 +147,7 @@ export function UploadNeon({
                     or <span className="text-cyan-400 underline underline-offset-4 decoration-cyan-400/30">browse your files</span>
                   </p>
                   <div className="flex gap-1.5 flex-wrap">
-                    {["WAV", "FLAC", "24-bit", "Any sample rate"].map(t => (
+                    {["WAV", "FLAC", "M4A", "MP3", "Phone recordings"].map(t => (
                       <span key={t} className="px-2.5 py-1 rounded-[7px] border border-cyan-400/15 bg-cyan-400/[0.04] text-[10px] font-semibold text-cyan-400/70 tracking-widest uppercase">
                         {t}
                       </span>
@@ -260,10 +262,43 @@ export function UploadNeon({
           <input
             ref={inputRef}
             type="file"
-            accept=".wav,.flac,audio/wav,audio/flac,audio/x-flac"
+            accept=".wav,.flac,.aiff,.aif,.m4a,.aac,.mp3,.ogg,.opus,audio/*"
             className="hidden"
             onChange={(e) => void onFiles(e.target.files)}
           />
+        </div>
+
+        {/* Style — available to every tier */}
+        <div className="w-full max-w-6xl mx-auto rounded-2xl border border-cyan-400/10 bg-[#09090b]/40 backdrop-blur-md mb-4 px-6 py-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-6">
+            <div className="shrink-0">
+              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-white">What are you releasing?</p>
+              <p className="text-[10px] text-white/40">{activeStyle.hint}</p>
+            </div>
+            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Music style">
+              {STYLE_FAMILIES.map((s) => {
+                const active = s.value === styleFamily;
+                return (
+                  <button
+                    key={s.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    title={s.hint}
+                    disabled={busy}
+                    onClick={() => setStyleFamily(s.value)}
+                    className={`rounded-xl border px-3 py-1.5 text-[11px] font-semibold transition ${
+                      active
+                        ? "border-cyan-400/60 bg-cyan-400/15 text-cyan-300 shadow-[0_0_16px_rgba(34,211,238,0.15)]"
+                        : "border-white/10 bg-black/30 text-white/55 hover:border-cyan-400/30 hover:text-white"
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {/* Advanced Settings */}

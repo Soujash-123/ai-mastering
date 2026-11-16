@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from mastering.dsp_params import SafeDSPParams
+from mastering.style_profiles import apply_style_profile, clamp_target_lufs, get_style_profile
 from models.mastering_intent import MasteringIntent
 
 
@@ -12,8 +13,18 @@ def clamp(n: float, lo: float, hi: float) -> float:
     return float(np.clip(n, lo, hi))
 
 
-def intent_to_safe_params(intent: MasteringIntent, measured_integrated_lufs: float) -> tuple[MasteringIntent, SafeDSPParams]:
-    """Returns (clamped intent copy, DSP parameters)."""
+def intent_to_safe_params(
+    intent: MasteringIntent,
+    measured_integrated_lufs: float,
+    style_family: str = "auto",
+    source_lossy: bool = False,
+) -> tuple[MasteringIntent, SafeDSPParams]:
+    """Returns (clamped intent copy, DSP parameters).
+
+    `style_family` selects a style envelope (see mastering/style_profiles.py)
+    that narrows the generic limits; "auto" leaves them unchanged.
+    """
+    profile = get_style_profile(style_family)
     eq = intent.eq_strategy
     comp = intent.compression_strategy
     sat = intent.saturation_strategy
@@ -27,12 +38,16 @@ def intent_to_safe_params(intent: MasteringIntent, measured_integrated_lufs: flo
         update={
             "loudness_strategy": loud.model_copy(
                 update={
-                    "target_lufs": clamp(loud.target_lufs, -18.0, -7.0),
+                    "target_lufs": clamp_target_lufs(clamp(loud.target_lufs, -18.0, -7.0), profile),
                     "true_peak_target_db": clamp(loud.true_peak_target_db, -3.0, -0.3),
                 }
             ),
             "mastering_chain": intent.mastering_chain.model_copy(
-                update={"target_lufs": clamp(intent.mastering_chain.target_lufs, -18.0, -7.0)}
+                update={
+                    "target_lufs": clamp_target_lufs(
+                        clamp(intent.mastering_chain.target_lufs, -18.0, -7.0), profile
+                    )
+                }
             ),
         }
     )
@@ -132,4 +147,5 @@ def intent_to_safe_params(intent: MasteringIntent, measured_integrated_lufs: flo
         center_anchor=n10(spatial.center_image_strength),
         sub_mono_strength=clamp(0.75 + n10(spatial.mono_compatibility_priority) * 0.2, 0.7, 0.98),
     )
+    params = apply_style_profile(params, profile, source_lossy=source_lossy)
     return safe_intent, params
