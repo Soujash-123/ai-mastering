@@ -25,6 +25,7 @@ PROVISIONED_USERS: tuple[ProvisionedUser, ...] = (
     ProvisionedUser("ron.e@syntalix.com", "6291704628", UserRole.EARLY_ACCESS, "Ron E"),
     ProvisionedUser("apple.dj@syntalix.com", "7596913957", UserRole.EARLY_ACCESS, "Apple DJ"),
     ProvisionedUser("ankur.kaur@syntalix.com", "9123623160", UserRole.EARLY_ACCESS, "Ankur Kaur"),
+    ProvisionedUser("ankush@corover.ai", "9880011208", UserRole.EARLY_ACCESS, "Ankush"),
 )
 
 _PROVISIONED_EMAILS = frozenset(u.email.lower() for u in PROVISIONED_USERS)
