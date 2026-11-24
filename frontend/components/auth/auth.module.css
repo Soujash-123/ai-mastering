@@ -1,0 +1,231 @@
+/* Auth and access pages: the landing hero's print world. A turmeric panel
+   with poster type and the waveform, the form on paper. */
+
+.frame {
+  --turmeric: rgb(var(--k-accent));
+  --ink: rgb(var(--k-ink));
+  --ink-soft: rgb(var(--k-ink-soft));
+  --rani: rgb(var(--k-second));
+  --paper: rgb(var(--k-paper-2));
+  display: grid;
+  min-height: calc(100vh - 72px);
+  background: var(--paper);
+  color: var(--ink);
+}
+@media (min-width: 960px) {
+  .frame {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.frame ::selection {
+  background: var(--rani);
+  color: var(--paper);
+}
+
+.poster {
+  background: var(--turmeric);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 2rem;
+  padding: clamp(2rem, 6vw, 4.5rem) clamp(1.25rem, 5vw, 4rem) 0;
+  overflow: hidden;
+}
+.posterTitle {
+  font-size: clamp(2.8rem, 9vw, 6.5rem);
+  line-height: 0.86;
+  font-weight: 800;
+  font-variation-settings: "wdth" 75;
+  letter-spacing: -0.02em;
+  max-width: 10ch;
+  text-wrap: balance;
+}
+.posterLine {
+  margin-top: 1.25rem;
+  font-size: clamp(1.05rem, 1.6vw, 1.25rem);
+  line-height: 1.5;
+  font-weight: 500;
+  max-width: 30rem;
+  color: rgb(var(--k-ink-2));
+  text-wrap: pretty;
+}
+.poster svg {
+  margin-inline: calc(clamp(1.25rem, 5vw, 4rem) * -1);
+  width: calc(100% + 2 * clamp(1.25rem, 5vw, 4rem));
+  max-width: none;
+}
+@media (max-width: 959px) {
+  .poster svg {
+    height: 72px;
+  }
+}
+
+.panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(2rem, 6vw, 4.5rem) clamp(1.25rem, 5vw, 4rem);
+}
+.panelInner {
+  width: 100%;
+  max-width: 28rem;
+}
+.h2 {
+  font-size: clamp(1.9rem, 3.5vw, 2.6rem);
+  line-height: 0.95;
+  font-weight: 800;
+  font-variation-settings: "wdth" 85;
+}
+.sub {
+  margin-top: 0.75rem;
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+
+.form {
+  margin-top: 2rem;
+  display: grid;
+  gap: 1.25rem;
+}
+.field {
+  display: grid;
+  gap: 0.45rem;
+}
+.label {
+  font-size: 0.98rem;
+  font-weight: 700;
+}
+.hint {
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+.input {
+  width: 100%;
+  min-height: 50px;
+  padding: 0.75rem 0.9rem;
+  background: #fff;
+  color: var(--ink);
+  border: 2px solid var(--ink);
+  border-radius: 0;
+  font: inherit;
+  font-size: 1.02rem;
+  transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+.input::placeholder {
+  color: rgb(var(--k-mid));
+}
+.input:focus {
+  outline: none;
+  border-color: var(--rani);
+  box-shadow: 0 0 0 3px rgb(var(--k-alert) / 0.18);
+}
+textarea.input {
+  resize: vertical;
+  min-height: 7.5rem;
+  line-height: 1.5;
+}
+.counter {
+  justify-self: end;
+  font-family: var(--f-mono), ui-monospace, monospace;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+.counterOk {
+  color: rgb(var(--k-ok-deep));
+}
+
+.error {
+  border: 2px solid var(--rani);
+  background: rgb(var(--k-alert) / 0.08);
+  color: rgb(var(--k-alert));
+  padding: 0.75rem 0.9rem;
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 1.5rem;
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 700;
+  font-size: 1.08rem;
+  transition: background-color 160ms ease-out, transform 120ms ease-out;
+}
+.btn:hover:not(:disabled) {
+  background: var(--rani);
+  transform: translateY(-1px);
+}
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.btn:focus-visible,
+.link:focus-visible,
+.input:focus-visible {
+  outline: 3px solid var(--rani);
+  outline-offset: 3px;
+}
+
+.foot {
+  margin-top: 2rem;
+  padding-top: 1.25rem;
+  border-top: 1.5px solid var(--ink);
+  font-size: 0.98rem;
+  color: var(--ink-soft);
+}
+.foot + .foot {
+  margin-top: 0;
+  border-top: 0;
+  padding-top: 0.75rem;
+}
+.link {
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+.link:hover {
+  text-decoration-color: var(--rani);
+}
+
+.list {
+  margin-top: 1.75rem;
+  border-top: 1.5px solid var(--ink);
+}
+.list li {
+  padding: 0.85rem 0;
+  border-bottom: 1px solid rgb(var(--k-ink) / 0.25);
+  font-size: 1.02rem;
+  line-height: 1.45;
+}
+.list strong {
+  font-weight: 700;
+}
+
+.success {
+  display: grid;
+  gap: 1rem;
+  justify-items: start;
+}
+.successMark {
+  width: 3.25rem;
+  height: 3.25rem;
+  display: grid;
+  place-items: center;
+  background: var(--ink);
+  color: var(--turmeric);
+}
+.success .btn {
+  width: auto;
+}

@@ -70,6 +70,8 @@ class JobResultResponse(BaseModel):
     master_wav_url: str
     master_playback_url: str
     waveform_peaks: list[float] = Field(default_factory=list)
+    # Creative desk values the artist sent (EARLY_ACCESS/ADMIN), if any.
+    creative: Optional[dict[str, int]] = None
     exports: list[ExportArtifact] = Field(default_factory=list)
     streaming_notes: list[str] = Field(default_factory=list)
     memory_profile: list[MemoryStepReport] = Field(default_factory=list)

@@ -1,74 +1,98 @@
+@import "./palettes.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* Kord design system: print world. See tailwind.config.js for the palette.
+   The app runs on ink; the public site (app/(site)) styles itself with
+   components/marketing/landing.module.css. */
+
 :root {
   color-scheme: dark;
-  --neon-cyan: #6ee7ff;
-  --neon-violet: #a78bfa;
-  --neon-gold: #f0b429;
-  font-family: var(--font-sora), system-ui, sans-serif;
+  --ink: rgb(var(--k-ink));
+  --ink-raised: rgb(var(--k-ink-2));
+  --paper: rgb(var(--k-paper));
+  --paper-bright: rgb(var(--k-paper-2));
+  --paper-soft: rgb(var(--k-paper-soft));
+  --turmeric: rgb(var(--k-accent));
+  --rani: rgb(var(--k-second));
+  --rule-ink: rgb(var(--k-paper) / 0.16);
+  /* Legacy names kept for any inline var() use */
+  --neon-cyan: var(--turmeric);
+  --neon-violet: var(--rani);
+  --neon-gold: var(--turmeric);
+  font-family: var(--f-anek), "Arial Narrow", sans-serif;
 }
 
 body {
   @apply antialiased;
-  background-color: #09090b;
-  color: #e6eaf5;
-  font-feature-settings: "ss01", "cv01";
+  background-color: var(--ink);
+  color: var(--paper);
 }
 
-/* Neon Waveform glass utility */
+::selection {
+  background: var(--turmeric);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--turmeric);
+  outline-offset: 2px;
+}
+
+input,
+select,
+textarea {
+  accent-color: var(--turmeric);
+}
+
+/* Measured values read better in tabular figures */
+.font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Former "glass" surface: a flat raised ink panel with a hairline. */
 .glass {
-  border: 1px solid rgba(110, 231, 255, 0.10);
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(16px);
+  border: 1px solid var(--rule-ink);
+  background: var(--ink-raised);
 }
 
-/* Neon card surface */
+/* Card surface */
 .neon-card {
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  background: rgba(255, 255, 255, 0.025);
-  border-radius: 1rem;
+  border: 1px solid var(--rule-ink);
+  background: var(--ink-raised);
+  border-radius: 3px;
 }
 
-/* Spectrum bar animation — core of neon waveform aesthetic */
+/* Spectrum bar animation, used by the processing meters */
 @keyframes spectrum-bar {
   0%   { transform: scaleY(0.10); }
   100% { transform: scaleY(1); }
 }
 
-/* Waveform pulse — used for ambient bars */
 @keyframes waveform-pulse {
   0%, 100% { opacity: 0.4; transform: scaleY(0.7); }
   50%       { opacity: 0.85; transform: scaleY(1); }
 }
 
-/* Shimmer */
 @keyframes shimmer {
   0%   { background-position: 0% center; }
   100% { background-position: -200% center; }
 }
 
-/* Neon glow text utilities */
-.text-glow {
-  text-shadow: 0 0 20px rgba(110, 231, 255, 0.55), 0 0 40px rgba(110, 231, 255, 0.2);
-}
-.text-glow-sm {
-  text-shadow: 0 0 10px rgba(110, 231, 255, 0.45);
-}
-.text-glow-gold {
-  text-shadow: 0 0 20px rgba(240, 180, 41, 0.5);
-}
+/* Former glow utilities: emphasis now comes from colour and weight, not halos. */
+.text-glow,
+.text-glow-sm,
+.text-glow-gold,
 .text-glow-violet {
-  text-shadow: 0 0 20px rgba(167, 139, 250, 0.5);
+  text-shadow: none;
 }
 
-/* Neon border glow */
 .neon-border {
-  box-shadow: 0 0 0 1px rgba(110, 231, 255, 0.20), inset 0 0 20px rgba(110, 231, 255, 0.02);
+  box-shadow: 0 0 0 1px var(--rule-ink);
 }
 
-/* Neon waveform scan line — decorative horizontal sweep */
 @keyframes scan-line {
   0%   { transform: translateY(-100%); opacity: 0; }
   10%  { opacity: 0.06; }

@@ -44,6 +44,33 @@ def _llm_section_scale(analysis: dict[str, Any], section_name: str) -> float:
     return 1.0
 
 
+def _section_values(row: dict[str, Any], ctx: dict[str, Any]) -> tuple[str, float, float, dict[str, float]]:
+    """(name, start, end, {width, sat, exciter, comp}) for one analysed section."""
+    name = str(row.get("section", "verse")).split("+")[0]
+    preset = _SECTION_PRESETS.get(name, _SECTION_PRESETS["verse"])
+    scale = _energy_scale(row) * _llm_section_scale(ctx, name)
+    start = float(row.get("start_sec", 0.0))
+    end = float(row.get("end_sec", start))
+    values = {k: float(preset[k] * scale) for k in ("width", "sat", "exciter", "comp")}
+    return name, start, end, values
+
+
+def section_amounts(analysis: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Per-section multipliers the render applies (same maths as the plan below).
+
+    Used by the processing page's live view, so what the artist sees is what
+    the engine does.
+    """
+    ctx = analysis or {}
+    out: list[dict[str, Any]] = []
+    for row in list(ctx.get("sectional_analysis") or []):
+        name, start, end, v = _section_values(row, ctx)
+        if end - start <= 0:
+            continue
+        out.append({"label": name, "start": round(start, 2), "end": round(end, 2), **{k: round(x, 3) for k, x in v.items()}})
+    return out
+
+
 def _build_control_rate_plan(
     duration_sec: float,
     sectional_analysis: list[dict[str, Any]],
@@ -63,21 +90,13 @@ def _build_control_rate_plan(
 
     ctx = analysis or {}
     for row in sectional_analysis:
-        name = str(row.get("section", "verse")).split("+")[0]
-        preset = _SECTION_PRESETS.get(name, _SECTION_PRESETS["verse"])
-        e_scale = _energy_scale(row)
-        llm = _llm_section_scale(ctx, name)
-        start = float(row.get("start_sec", 0.0))
-        end = float(row.get("end_sec", start))
+        name, start, end, v = _section_values(row, ctx)
         dur = max(0.0, end - start)
         if dur <= 0:
             continue
 
         labels.append(name)
-        w_val = float(preset["width"] * e_scale * llm)
-        s_val = float(preset["sat"] * e_scale * llm)
-        e_val = float(preset["exciter"] * e_scale * llm)
-        c_val = float(preset["comp"] * e_scale * llm)
+        w_val, s_val, e_val, c_val = v["width"], v["sat"], v["exciter"], v["comp"]
 
         width_sum += w_val * dur
         sat_sum += s_val * dur

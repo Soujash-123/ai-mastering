@@ -24,7 +24,7 @@ export function AudioComparisonPlayer({ beforeUrl, afterUrl, durationSec }: Prop
     <div className="glass rounded-2xl p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-neon-purple">Audio comparison</p>
+          <p className="text-xs text-neon-purple">Audio comparison</p>
           <h2 className="mt-2 text-lg font-semibold text-white">Before vs After</h2>
         </div>
         <div className="flex flex-wrap gap-2">

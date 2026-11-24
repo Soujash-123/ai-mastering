@@ -1,0 +1,939 @@
+/* Kord public site. Print world (turmeric, ink, rani on paper) with a VU meter
+   as the one authored motion moment and measured numbers in mono. */
+
+.site {
+  --turmeric: rgb(var(--k-accent));
+  --ink: rgb(var(--k-ink));
+  --ink-2: rgb(var(--k-ink-2));
+  --rani: rgb(var(--k-second));
+  --paper: rgb(var(--k-paper-2));
+  --ink-soft: rgb(var(--k-ink-soft));
+  --on-ink: rgb(var(--k-paper));
+  --on-ink-soft: rgb(var(--k-paper-soft));
+  --rule: 3px solid var(--ink);
+  --wrap: min(100% - 2.5rem, 76rem);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--f-anek), "Arial Narrow", sans-serif;
+  font-variation-settings: "wdth" 100;
+  min-height: 100vh;
+}
+.site ::selection {
+  background: var(--rani);
+  color: var(--paper);
+}
+.site :focus-visible {
+  outline: 3px solid var(--rani);
+  outline-offset: 3px;
+}
+.site p {
+  text-wrap: pretty;
+}
+.wrap {
+  width: var(--wrap);
+  margin-inline: auto;
+}
+.mono {
+  font-family: var(--f-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.skip {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+  z-index: 50;
+  padding: 0.75rem 1rem;
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 700;
+}
+.skip:focus {
+  top: 1rem;
+}
+
+/* Buttons --------------------------------------------------------------- */
+.btn,
+.btnGhost,
+.btnOnInk {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 0 1.6rem;
+  font-weight: 700;
+  font-size: 1.08rem;
+  line-height: 1;
+  white-space: nowrap;
+  transition: transform 120ms ease-out, background-color 160ms ease-out, color 160ms ease-out;
+}
+.btn {
+  background: var(--ink);
+  color: var(--paper);
+  min-width: 13.5rem;
+}
+.btn:hover {
+  background: var(--rani);
+  transform: translateY(-1px);
+}
+.btnOnInk {
+  background: var(--turmeric);
+  color: var(--ink);
+}
+.btnOnInk:hover {
+  background: var(--paper);
+  transform: translateY(-1px);
+}
+.btn:active,
+.btnOnInk:active {
+  transform: translateY(1px);
+}
+.btnGhost {
+  padding: 0;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 6px;
+}
+.btnGhost:hover {
+  text-decoration-color: var(--rani);
+}
+
+/* Header ---------------------------------------------------------------- */
+.header {
+  background: var(--turmeric);
+}
+.headerInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 72px;
+}
+.wordmark {
+  font-weight: 800;
+  font-size: 1.6rem;
+  letter-spacing: 0.06em;
+  font-variation-settings: "wdth" 110;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.nav {
+  display: none;
+  gap: 1.75rem;
+  font-weight: 600;
+}
+.nav a {
+  padding-block: 0.6rem;
+}
+.nav a:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 5px;
+}
+@media (min-width: 900px) {
+  .nav {
+    display: flex;
+  }
+}
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+.login {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 600;
+}
+@media (max-width: 400px) {
+  .headerActions {
+    gap: 0.9rem;
+  }
+  .headerActions .btn {
+    padding: 0 0.8rem;
+    font-size: 0.95rem;
+  }
+  .wordmark {
+    font-size: 1.35rem;
+  }
+}
+.headerActions .btn {
+  min-height: 44px;
+  min-width: 0;
+  padding: 0 1.1rem;
+  font-size: 1rem;
+}
+
+/* Hero ------------------------------------------------------------------ */
+.hero {
+  background: var(--turmeric);
+  padding-top: clamp(2rem, 6vw, 4.5rem);
+  overflow: hidden;
+}
+.heroGrid {
+  display: grid;
+  gap: 2.5rem;
+}
+@media (min-width: 960px) {
+  .heroGrid {
+    grid-template-columns: minmax(0, 1fr) 22rem;
+    align-items: end;
+    gap: 3.5rem;
+  }
+}
+.h1 {
+  font-size: clamp(3.3rem, 12vw, 9.75rem);
+  line-height: 0.86;
+  font-weight: 800;
+  font-variation-settings: "wdth" 75;
+  letter-spacing: -0.02em;
+  max-width: 11ch;
+  text-wrap: balance;
+}
+.heroFoot {
+  margin-top: clamp(1.75rem, 4vw, 2.75rem);
+  display: grid;
+  gap: 1.75rem;
+}
+@media (min-width: 900px) {
+  .heroFoot {
+    grid-template-columns: minmax(0, 33rem) auto;
+    justify-content: space-between;
+    align-items: end;
+  }
+}
+.lede {
+  font-size: clamp(1.1rem, 1.7vw, 1.3rem);
+  line-height: 1.5;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.75rem;
+  align-items: center;
+}
+
+/* VU meter, printed in two inks. Needle settles once on load. */
+.meter {
+  background: var(--paper);
+  border: var(--rule);
+  padding: 0.9rem 0.9rem 0;
+  max-width: 22rem;
+  width: 100%;
+}
+.vu {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.vuArc {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+.vuRed {
+  fill: none;
+  stroke: var(--rani);
+  stroke-width: 7;
+}
+.tick {
+  stroke: var(--ink);
+  stroke-width: 1.8;
+}
+.tickRed {
+  stroke: var(--rani);
+  stroke-width: 1.8;
+}
+.tickLabel,
+.tickLabelRed {
+  font-family: var(--f-mono), ui-monospace, monospace;
+  font-size: 12px;
+  fill: var(--ink);
+}
+.tickLabelRed {
+  fill: var(--rani);
+}
+.vuMark {
+  font-family: var(--f-anek), sans-serif;
+  font-weight: 800;
+  font-size: 20px;
+  fill: var(--ink);
+}
+.needle {
+  transform-box: view-box;
+  transform-origin: 150px 168px;
+  transform: rotate(10deg);
+  animation: needle 1.8s cubic-bezier(0.2, 0.7, 0.2, 1) 0.3s both;
+}
+.needle line {
+  stroke: var(--ink);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.vuHub {
+  fill: var(--ink);
+}
+@keyframes needle {
+  0% { transform: rotate(-50deg); }
+  45% { transform: rotate(21deg); }
+  68% { transform: rotate(6deg); }
+  86% { transform: rotate(12deg); }
+  100% { transform: rotate(10deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .needle {
+    animation: none;
+  }
+}
+.readouts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-top: var(--rule);
+  margin: 0.9rem -0.9rem 0;
+}
+.readouts div {
+  padding: 0.65rem 0.9rem 0.75rem;
+}
+.readouts div + div {
+  border-left: var(--rule);
+}
+.readouts dt {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.readouts dd {
+  font-size: 1.2rem;
+  font-weight: 500;
+  margin-top: 0.15rem;
+}
+.readouts small {
+  font-size: 0.72em;
+  margin-left: 0.3em;
+}
+.wave {
+  display: block;
+  width: 100%;
+  height: clamp(96px, 16vw, 200px);
+  margin-top: clamp(2.5rem, 5vw, 3.5rem);
+}
+.played {
+  fill: var(--rani);
+}
+.unplayed {
+  fill: var(--ink);
+}
+
+/* Section scaffolding --------------------------------------------------- */
+.section {
+  padding-block: clamp(4.5rem, 10vw, 8rem);
+}
+.onInk {
+  background: var(--ink);
+  color: var(--on-ink);
+}
+.onRani {
+  background: var(--rani);
+  color: var(--paper);
+}
+.onTurmeric {
+  background: var(--turmeric);
+}
+.ruled {
+  border-top: var(--rule);
+}
+.h2 {
+  font-size: clamp(2.3rem, 5.6vw, 4.5rem);
+  line-height: 0.92;
+  font-weight: 800;
+  font-variation-settings: "wdth" 80;
+  letter-spacing: -0.01em;
+  max-width: 18ch;
+  text-wrap: balance;
+}
+.sectionHead {
+  display: grid;
+  gap: 1.25rem;
+}
+@media (min-width: 900px) {
+  .sectionHead {
+    grid-template-columns: 1.25fr 1fr;
+    align-items: end;
+    gap: 3rem;
+  }
+}
+.sub {
+  font-size: 1.12rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  max-width: 32rem;
+}
+.onInk .sub {
+  color: var(--on-ink-soft);
+}
+
+/* Player ---------------------------------------------------------------- */
+.player {
+  margin-top: clamp(2.5rem, 5vw, 3.5rem);
+  border: 3px solid var(--on-ink);
+}
+.playerBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 3px solid var(--on-ink);
+}
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+}
+.tab {
+  min-height: 44px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--on-ink-soft);
+  border-bottom: 3px solid transparent;
+}
+.tab[aria-pressed="true"] {
+  color: var(--on-ink);
+  border-bottom-color: var(--turmeric);
+}
+.tab:disabled {
+  cursor: default;
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  align-items: center;
+}
+.playBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 48px;
+  min-width: 7.5rem;
+  padding: 0 1.1rem;
+  background: var(--turmeric);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 1.05rem;
+  transition: background-color 160ms ease-out;
+}
+.playBtn:hover:not(:disabled) {
+  background: var(--paper);
+}
+.playBtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.ab {
+  display: inline-flex;
+  border: 2px solid var(--on-ink);
+}
+.ab button {
+  min-height: 44px;
+  min-width: 5.25rem;
+  padding: 0 0.9rem;
+  font-weight: 700;
+  color: var(--on-ink);
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+.ab button[aria-pressed="true"] {
+  background: var(--on-ink);
+  color: var(--ink);
+}
+.ab button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.match {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 44px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.match input {
+  width: 1.2rem;
+  height: 1.2rem;
+  accent-color: var(--turmeric);
+}
+.tracks {
+  display: grid;
+}
+.track {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1.25rem;
+  transition: opacity 160ms ease-out;
+}
+.track + .track {
+  border-top: 1px solid rgb(var(--k-paper) / 0.2);
+}
+.track[data-active="false"] {
+  opacity: 0.45;
+}
+.trackLabel {
+  font-weight: 700;
+}
+.trackWave {
+  min-height: 72px;
+  position: relative;
+}
+.trackWave:empty::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 2px dashed rgb(var(--k-paper) / 0.3);
+}
+.playerFoot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
+  padding: 0.85rem 1.25rem;
+  border-top: 3px solid var(--on-ink);
+  font-size: 0.95rem;
+  color: var(--on-ink-soft);
+}
+.empty {
+  padding: clamp(1.5rem, 4vw, 2.5rem) 1.25rem;
+  display: grid;
+  gap: 1.25rem;
+}
+.empty p {
+  max-width: 38rem;
+  font-size: 1.08rem;
+  line-height: 1.55;
+  color: var(--on-ink-soft);
+}
+.emptySlots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.emptySlots {
+  font-weight: 600;
+  color: var(--on-ink);
+}
+.emptySlots li + li::before {
+  content: "/";
+  margin-right: 0.5rem;
+  color: var(--on-ink-soft);
+}
+
+/* Styles table ---------------------------------------------------------- */
+.stacked {
+  grid-template-columns: 1fr !important;
+}
+.stacked .h2 {
+  max-width: 20ch;
+  font-size: clamp(2.4rem, 7vw, 6rem);
+}
+.tableNote {
+  margin-top: 1.25rem;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  max-width: 44rem;
+}
+.mobileScale {
+  margin-top: 2rem;
+  font-size: 0.98rem;
+  font-weight: 600;
+}
+@media (min-width: 900px) {
+  .mobileScale {
+    display: none;
+  }
+}
+.scale {
+  display: none;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: clamp(2.5rem, 5vw, 3.5rem);
+}
+.table thead th {
+  text-align: left;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+  padding: 0 1rem 0.75rem 0;
+  border-bottom: var(--rule);
+  vertical-align: bottom;
+}
+.table tbody th,
+.table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 1.4rem 1rem 1.5rem 0;
+  border-bottom: 1.5px solid var(--ink);
+}
+.styleName {
+  display: block;
+  font-size: clamp(1.4rem, 2.3vw, 1.85rem);
+  line-height: 1;
+  font-weight: 800;
+  font-variation-settings: "wdth" 85;
+}
+.styleLine {
+  display: block;
+  margin-top: 0.6rem;
+  font-weight: 400;
+  font-size: 1.02rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  max-width: 34rem;
+}
+.axis {
+  position: relative;
+  display: block;
+  height: 1.2rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+.axis span {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%);
+}
+.axis span:first-child {
+  transform: none;
+}
+.axis span:last-child {
+  transform: translateX(-100%);
+}
+.win {
+  position: relative;
+  display: block;
+  height: 14px;
+  margin-block: 0.35rem 0.5rem;
+  background:
+    linear-gradient(var(--ink), var(--ink)) 0 50% / 100% 1.5px no-repeat;
+}
+.win::before {
+  content: "";
+  position: absolute;
+  inset: 3px 0;
+  background: repeating-linear-gradient(90deg, var(--ink) 0 1.5px, transparent 1.5px calc(100% / 12));
+  opacity: 0.6;
+}
+.winBar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--rani);
+}
+.cellNum {
+  font-size: 1rem;
+  white-space: nowrap;
+}
+@media (min-width: 900px) {
+  .colStyle { width: 44%; }
+  .colWin { width: 26%; }
+}
+@media (max-width: 899px) {
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+  .table,
+  .table tbody,
+  .table tr,
+  .table th,
+  .table td {
+    display: block;
+  }
+  .table tbody tr {
+    padding-block: 1.4rem;
+    border-bottom: 1.5px solid var(--ink);
+  }
+  .table tbody tr:first-child {
+    border-top: var(--rule);
+  }
+  .table tbody th {
+    border: 0;
+    padding: 0 0 0.75rem;
+  }
+  .table td {
+    border: 0;
+    padding: 0.3rem 0;
+    display: grid;
+    grid-template-columns: 8.5rem 1fr;
+    gap: 0.75rem;
+    align-items: center;
+  }
+  .table td::before {
+    content: attr(data-label);
+    font-family: var(--f-anek), sans-serif;
+    font-variant-numeric: normal;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--ink-soft);
+  }
+  .axis {
+    display: none;
+  }
+}
+
+/* How it works: a signal chain ------------------------------------------ */
+.chain {
+  margin-top: clamp(2.5rem, 5vw, 4rem);
+  display: grid;
+  gap: 0;
+  counter-reset: step;
+}
+.step {
+  position: relative;
+  padding: 0 0 2rem 3.5rem;
+}
+.step::before {
+  counter-increment: step;
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  display: grid;
+  place-items: center;
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+.step::after {
+  content: "";
+  position: absolute;
+  left: calc(1.125rem - 1.5px);
+  top: 2.25rem;
+  bottom: 0;
+  width: 3px;
+  background: var(--ink);
+}
+.step:last-child::after {
+  display: none;
+}
+.step[data-key="true"]::before {
+  background: var(--rani);
+}
+.onInk .step::before {
+  background: var(--on-ink);
+  color: var(--ink);
+}
+.onInk .step::after {
+  background: var(--on-ink-soft);
+}
+.onInk .step[data-key="true"]::before {
+  background: var(--turmeric);
+}
+.onInk .stepText {
+  color: var(--on-ink-soft);
+}
+.stepTitle {
+  font-size: 1.45rem;
+  line-height: 1.05;
+  font-weight: 800;
+  font-variation-settings: "wdth" 85;
+  padding-top: 0.3rem;
+}
+.stepText {
+  margin-top: 0.5rem;
+  font-size: 1.02rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  max-width: 30rem;
+}
+@media (min-width: 1000px) {
+  .chain {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1.5rem;
+  }
+  .step {
+    padding: 3.5rem 0 0;
+  }
+  .step::after {
+    left: 2.25rem;
+    right: -1.5rem;
+    top: calc(1.125rem - 1.5px);
+    bottom: auto;
+    width: auto;
+    height: 3px;
+  }
+}
+
+/* Blind test: the statement is the type moment -------------------------- */
+.statement {
+  font-size: clamp(2.1rem, 5.8vw, 4.75rem);
+  line-height: 0.98;
+  font-weight: 800;
+  font-variation-settings: "wdth" 78;
+  letter-spacing: -0.01em;
+  max-width: 22ch;
+  text-wrap: balance;
+}
+.method {
+  margin-top: 2rem;
+  max-width: 38rem;
+  font-size: 1.08rem;
+  line-height: 1.55;
+  color: rgb(var(--k-paper));
+}
+
+/* Early access ---------------------------------------------------------- */
+.access {
+  display: grid;
+  gap: 1.75rem;
+}
+@media (min-width: 900px) {
+  .access {
+    grid-template-columns: 1.25fr 1fr;
+    gap: 3rem;
+    align-items: end;
+  }
+}
+.accessText {
+  display: grid;
+  gap: 1.5rem;
+  justify-items: start;
+}
+.accessText p {
+  font-size: 1.15rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  max-width: 32rem;
+}
+
+/* FAQ ------------------------------------------------------------------- */
+.faqList {
+  margin-top: clamp(2.5rem, 5vw, 3.5rem);
+  border-top: var(--rule);
+  max-width: 52rem;
+}
+.faqItem {
+  border-bottom: 1.5px solid var(--ink);
+}
+.faqItem summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.5rem;
+  min-height: 64px;
+  padding-block: 1rem;
+  font-size: clamp(1.15rem, 2vw, 1.4rem);
+  font-weight: 700;
+  line-height: 1.3;
+}
+.faqItem summary::-webkit-details-marker {
+  display: none;
+}
+.faqItem summary::after {
+  content: "";
+  flex: none;
+  width: 14px;
+  height: 14px;
+  background:
+    linear-gradient(var(--ink), var(--ink)) center / 14px 3px no-repeat,
+    linear-gradient(var(--ink), var(--ink)) center / 3px 14px no-repeat;
+  transition: transform 180ms ease-out;
+}
+.faqItem[open] summary::after {
+  transform: rotate(45deg);
+}
+.faqItem summary:hover {
+  color: var(--rani);
+}
+.faqItem p {
+  padding-bottom: 1.5rem;
+  font-size: 1.06rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  max-width: 44rem;
+}
+
+/* Final CTA + footer ---------------------------------------------------- */
+.close {
+  display: grid;
+  gap: 2rem;
+  justify-items: start;
+}
+.closeTitle {
+  font-size: clamp(2.8rem, 9vw, 7.5rem);
+  line-height: 0.88;
+  font-weight: 800;
+  font-variation-settings: "wdth" 75;
+  letter-spacing: -0.02em;
+  max-width: 13ch;
+  text-wrap: balance;
+}
+.footer {
+  background: var(--ink);
+  color: var(--on-ink-soft);
+  padding-block: 2.5rem;
+  font-size: 0.98rem;
+}
+.footerInner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  justify-content: space-between;
+  align-items: center;
+}
+.footerLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+}
+.footerLinks a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--on-ink);
+}
+.footerLinks a:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+/* Legal pages ----------------------------------------------------------- */
+.legal {
+  padding-block: clamp(3rem, 8vw, 6rem);
+}
+.legal h1 {
+  font-size: clamp(2.6rem, 7vw, 4.5rem);
+  line-height: 0.92;
+  font-weight: 800;
+  font-variation-settings: "wdth" 80;
+}
+.legal h2 {
+  margin-top: 2.5rem;
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+.legal p {
+  margin-top: 1rem;
+  max-width: 42rem;
+  font-size: 1.08rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}

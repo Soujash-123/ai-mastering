@@ -49,7 +49,7 @@ export function MemoryProfilePanel({ steps }: Props) {
   if (steps.length === 0) {
     return (
       <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
-        <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-mist-200/38">Process Memory</p>
+        <p className="text-[11px] font-bold text-mist-200/38">Process Memory</p>
         <p className="mt-3 text-xs text-mist-200/45">Memory profiling data is not available for this job.</p>
       </div>
     );
@@ -59,11 +59,11 @@ export function MemoryProfilePanel({ steps }: Props) {
     <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-mist-200/38">Process Memory</p>
+          <p className="text-[11px] font-bold text-mist-200/38">Process Memory</p>
           <p className="mt-1 text-xs text-mist-200/50">RSS per backend step after mastering completed</p>
         </div>
         <div className="rounded-xl border border-accent/25 bg-accent/[0.06] px-3 py-2 text-right">
-          <p className="text-[8px] uppercase tracking-wider text-accent/60">Peak RSS</p>
+          <p className="text-[11px] text-accent/60">Peak RSS</p>
           <p className="font-mono text-lg font-bold text-accent">{peakMb.toFixed(1)} MiB</p>
         </div>
       </div>
@@ -71,9 +71,9 @@ export function MemoryProfilePanel({ steps }: Props) {
       <div className="space-y-5">
         {grouped.map(({ group, items }) => (
           <div key={group}>
-            <p className="mb-2 text-[9px] font-bold uppercase tracking-[0.18em] text-mist-200/32">{group}</p>
+            <p className="mb-2 text-[11px] font-bold text-mist-200/32">{group}</p>
             <div className="overflow-hidden rounded-xl border border-white/[0.06]">
-              <div className="grid grid-cols-[1fr_4.5rem_4.5rem_4.5rem] gap-2 border-b border-white/[0.06] bg-ink-950/40 px-3 py-2 text-[8px] font-bold uppercase tracking-wider text-mist-200/30">
+              <div className="grid grid-cols-[1fr_4.5rem_4.5rem_4.5rem] gap-2 border-b border-white/[0.06] bg-ink-950/40 px-3 py-2 text-[11px] font-bold text-mist-200/30">
                 <span>Step</span>
                 <span className="text-right">End</span>
                 <span className="text-right">Delta</span>
@@ -88,7 +88,7 @@ export function MemoryProfilePanel({ steps }: Props) {
                     className="grid grid-cols-[1fr_4.5rem_4.5rem_4.5rem] items-center gap-2 border-b border-white/[0.04] px-3 py-2.5 last:border-b-0"
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-[11px] font-medium text-mist-200/75" title={step.name}>
+                      <p className="truncate text-[13px] font-medium text-mist-200/75" title={step.name}>
                         {formatStepLabel(step.name)}
                       </p>
                       <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/[0.06]">
@@ -97,22 +97,22 @@ export function MemoryProfilePanel({ steps }: Props) {
                           style={{
                             width: `${deltaPct}%`,
                             background: deltaPositive
-                              ? "linear-gradient(90deg, rgba(110,231,255,0.35), rgba(110,231,255,0.85))"
-                              : "linear-gradient(90deg, rgba(167,139,250,0.35), rgba(167,139,250,0.85))",
+                              ? "linear-gradient(90deg, rgb(var(--k-accent) / 0.35), rgb(var(--k-accent) / 0.85))"
+                              : "linear-gradient(90deg, rgb(var(--k-alert) / 0.35), rgb(var(--k-alert) / 0.85))",
                           }}
                         />
                       </div>
                     </div>
-                    <span className="text-right font-mono text-[10px] text-mist-200/60">{step.rss_end_mb.toFixed(1)}</span>
+                    <span className="text-right font-mono text-xs text-mist-200/60">{step.rss_end_mb.toFixed(1)}</span>
                     <span
-                      className={`text-right font-mono text-[10px] font-semibold ${
+                      className={`text-right font-mono text-xs font-semibold ${
                         step.delta_mb > 10 ? "text-accent" : step.delta_mb < -5 ? "text-violet/80" : "text-mist-200/55"
                       }`}
                     >
                       {step.delta_mb >= 0 ? "+" : ""}
                       {step.delta_mb.toFixed(1)}
                     </span>
-                    <span className="text-right font-mono text-[10px] text-mist-200/45">{step.rss_peak_mb.toFixed(1)}</span>
+                    <span className="text-right font-mono text-xs text-mist-200/45">{step.rss_peak_mb.toFixed(1)}</span>
                   </div>
                 );
               })}

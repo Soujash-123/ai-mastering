@@ -41,6 +41,7 @@ from auth.router import router as auth_router
 from auth.schemas import UserRole
 from mastering.chain import playback_wav_path
 from mastering.style_profiles import normalize_style_family
+from mastering.creative import CreativeParseError, parse_creative
 from studio.router import invalidate_studio_snapshot, router as studio_router
 from mastering.preview import (
     load_render_context,
@@ -215,6 +216,7 @@ async def create_job(
     user_intent: str = Form(""),
     ephemeral: bool = Form(False),
     style_family: str = Form("auto"),
+    creative: str = Form(""),
 ) -> JobCreateResponse:
     if not file.filename:
         raise HTTPException(status_code=400, detail="Missing filename")
@@ -231,6 +233,12 @@ async def create_job(
         style_family = normalize_style_family(style_family)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    # Creative desk (mastering/creative.py): validated for everyone so bad input
+    # fails fast, but only applied for EARLY_ACCESS and ADMIN (dropped below).
+    try:
+        creative_controls = parse_creative(creative)
+    except CreativeParseError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     rec = await job_store.create_job(
         settings.data_dir,
@@ -241,6 +249,8 @@ async def create_job(
     rec.original_filename = file.filename
     rec.style_family = style_family
     rec.source_format = suffix.lstrip(".")
+    if creative_controls is not None and user.role != UserRole.ROLLOUT.value and not creative_controls.is_neutral():
+        rec.creative = creative_controls.model_dump()
     assert rec.input_path is not None
 
     try:
@@ -631,6 +641,7 @@ async def remaster_job(
 async def ws_job_progress(websocket: WebSocket, job_id: str) -> None:
     """Stream job progress and final result over WebSocket."""
     await websocket.accept()
+    live_view_sent = 0  # version of rec.live_view already sent (sent once per version, ~2 KB)
     try:
         while True:
             rec = await job_store.get(job_id)
@@ -643,7 +654,12 @@ async def ws_job_progress(websocket: WebSocket, job_id: str) -> None:
                 "status": rec.status.value,
                 "progress": rec.progress,
                 "message": rec.message or "",
+                "stage": rec.stage or "",
             })
+            lv = rec.live_view
+            if lv and int(lv.get("version", 0)) > live_view_sent:
+                live_view_sent = int(lv.get("version", 0))
+                await websocket.send_json({"type": "live_view", **lv})
 
             if rec.status == JobStatus.completed:
                 await websocket.send_json(build_ws_result_payload(rec))

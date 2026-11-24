@@ -1,0 +1,31 @@
+# Kord Studio
+
+> Kord is an AI mastering service for Indian independent artists and bedroom producers, made by Syntalix LLP. It turns a finished mix into release-ready masters for streaming.
+
+Website: https://kordstudio.syntalixconsultancy.com
+
+## What Kord does
+- Accepts WAV, FLAC and AIFF, and phone formats: M4A, AAC, MP3, OGG and Opus. Compressed sources are detected and the highs are not over-brightened.
+- Analyses loudness, dynamics, tonal balance and stereo width.
+- A language model reads those measurements (never the audio) and describes what the master needs.
+- A deterministic safety layer turns that into bounded processing settings. The AI cannot exceed the limits.
+- Delivers a lossless master plus versions for Spotify (FLAC, -14 LUFS), Apple Music (WAV, -16 LUFS), club play and broadcast (WAV, -24 LUFS), with peaks under -1 dBTP.
+
+## Mastering styles built for Indian music
+- Hindustani and Carnatic classical: -16 to -14 LUFS, compression at most 1.5:1 with slow release, so the tanpura does not pump and tabla and mridangam keep their attack.
+- Devotional (bhajan, kirtan, qawwali): -15 to -13 LUFS, gentle control at most 2:1, warm and close.
+- Film and playback songs: -12 to -10 LUFS, vocal forward, harsh 2-5 kHz edges on bright high notes controlled.
+- Bollywood, Punjabi and dance: -10 to -8 LUFS, punchy dhol and kick, mono sub.
+- Fusion and indie: -13 to -10 LUFS, acoustic instrument realism with a modern finish.
+
+## Files and privacy
+- Uploads and working files are deleted about 10 minutes after the session ends. The finished master stays in cloud storage for up to 12 hours for download, then is deleted.
+
+## Access
+- Kord is in early access. Artists request access at https://kordstudio.syntalixconsultancy.com/access-request and are onboarded personally.
+
+## Pages
+- Home: https://kordstudio.syntalixconsultancy.com/
+- Request early access: https://kordstudio.syntalixconsultancy.com/access-request
+- Privacy: https://kordstudio.syntalixconsultancy.com/privacy
+- Terms: https://kordstudio.syntalixconsultancy.com/terms

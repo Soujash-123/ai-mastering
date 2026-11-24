@@ -1,0 +1,100 @@
+/* Kord colour roles. Every colour in the site and the app comes from these
+   variables (as "R G B" triplets so alpha works: rgb(var(--k-accent) / 0.2)).
+   A palette is one block below. :root carries the chosen one (Peacock & brass);
+   the others are kept as alternatives and apply with <html data-palette="...">.
+
+   Roles
+   --k-ink        dark ground (app background, text on light pages)
+   --k-ink-2      raised dark surface
+   --k-ink-3      deepest dark
+   --k-ink-soft   muted text on light grounds
+   --k-paper      light text on dark / light surfaces
+   --k-paper-2    brightest light ground (public pages)
+   --k-paper-soft muted text on dark grounds
+   --k-mid        neutral mid tone (disabled, quiet marks)
+   --k-accent     the one accent (buttons, played audio, meters)
+   --k-accent-hi  lighter accent (hover)
+   --k-second     secondary ink (landing details, hover on light pages)
+   --k-alert      problems and errors
+   --k-alert-hi   problems on dark grounds
+   --k-ok         done / safe readouts
+   --k-ok-deep    ok text on light grounds */
+
+/* Peacock & brass (default): deep peacock-teal ground, brass, coral. */
+:root,
+[data-palette="peacock"] {
+  --k-ink: 11 36 38;
+  --k-ink-2: 19 53 55;
+  --k-ink-3: 6 24 25;
+  --k-ink-soft: 58 80 78;
+  --k-paper: 238 240 233;
+  --k-paper-2: 248 249 245;
+  --k-paper-soft: 168 189 184;
+  --k-mid: 120 145 140;
+  --k-accent: 214 170 76;
+  --k-accent-hi: 231 197 126;
+  --k-second: 14 112 108;
+  --k-alert: 205 86 62;
+  --k-alert-hi: 238 140 116;
+  --k-ok: 126 178 138;
+  --k-ok-deep: 52 104 70;
+}
+
+/* Alternatives (same specificity as :root, so they must come after it). */
+
+[data-palette="turmeric"] {
+  --k-ink: 28 20 17;
+  --k-ink-2: 42 32 27;
+  --k-ink-3: 18 13 11;
+  --k-ink-soft: 74 61 54;
+  --k-paper: 243 237 227;
+  --k-paper-2: 251 249 244;
+  --k-paper-soft: 194 184 171;
+  --k-mid: 149 134 115;
+  --k-accent: 235 166 28;
+  --k-accent-hi: 243 194 87;
+  --k-second: 196 23 77;
+  --k-alert: 196 23 77;
+  --k-alert-hi: 226 71 111;
+  --k-ok: 111 169 85;
+  --k-ok-deep: 53 89 42;
+}
+
+/* Neel & kesar: indigo-dyed ground, chalk, saffron, madder red. */
+[data-palette="neel"] {
+  --k-ink: 18 26 54;
+  --k-ink-2: 29 40 78;
+  --k-ink-3: 11 16 36;
+  --k-ink-soft: 63 71 102;
+  --k-paper: 241 238 230;
+  --k-paper-2: 250 248 243;
+  --k-paper-soft: 184 189 206;
+  --k-mid: 128 136 165;
+  --k-accent: 240 138 46;
+  --k-accent-hi: 246 171 103;
+  --k-second: 168 40 30;
+  --k-alert: 190 49 38;
+  --k-alert-hi: 236 112 96;
+  --k-ok: 108 168 128;
+  --k-ok-deep: 46 102 66;
+}
+
+
+/* Gulabi: graphite, Jaipur pink, deep wine. */
+[data-palette="gulabi"] {
+  --k-ink: 30 30 34;
+  --k-ink-2: 43 43 49;
+  --k-ink-3: 18 18 21;
+  --k-ink-soft: 74 71 70;
+  --k-paper: 242 238 234;
+  --k-paper-2: 251 249 247;
+  --k-paper-soft: 186 182 180;
+  --k-mid: 140 136 134;
+  --k-accent: 234 158 166;
+  --k-accent-hi: 243 190 196;
+  --k-second: 122 28 60;
+  --k-alert: 196 48 43;
+  --k-alert-hi: 238 112 106;
+  --k-ok: 110 168 140;
+  --k-ok-deep: 46 104 80;
+}

@@ -41,7 +41,7 @@ export function CopilotPanel({ messages, thinking, onSend, canUndoLast, onUndoLa
   const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
 
   return (
-    <aside className="flex h-full min-h-0 flex-col rounded-2xl border border-cyan-400/10 bg-[#0c0c10]/95">
+    <aside className="flex h-full min-h-0 flex-col rounded-2xl border border-cyan-400/10 bg-ink-800">
       <div className="flex items-center gap-2.5 border-b border-white/[0.06] px-4 py-3">
         <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-400/10 text-cyan-300">
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -50,7 +50,7 @@ export function CopilotPanel({ messages, thinking, onSend, canUndoLast, onUndoLa
         </div>
         <div className="min-w-0">
           <p className="text-[12px] font-bold text-white">Mastering Copilot</p>
-          <p className="truncate text-[10px] text-white/40">Knows your song{styleLabel ? ` · ${styleLabel}` : ""}</p>
+          <p className="truncate text-xs text-white/40">Knows your song{styleLabel ? ` · ${styleLabel}` : ""}</p>
         </div>
       </div>
 
@@ -62,7 +62,7 @@ export function CopilotPanel({ messages, thinking, onSend, canUndoLast, onUndoLa
             </p>
             <div className="flex flex-wrap gap-1.5">
               {SUGGESTIONS.map((s) => (
-                <button key={s} type="button" onClick={() => submit(s)} className="rounded-full border border-cyan-400/20 bg-cyan-400/[0.05] px-2.5 py-1 text-[11px] text-cyan-200/90 transition hover:bg-cyan-400/15">
+                <button key={s} type="button" onClick={() => submit(s)} className="rounded-full border border-cyan-400/20 bg-cyan-400/[0.05] px-2.5 py-1 text-[13px] text-cyan-200/90 transition hover:bg-cyan-400/15">
                   {s}
                 </button>
               ))}
@@ -85,7 +85,7 @@ export function CopilotPanel({ messages, thinking, onSend, canUndoLast, onUndoLa
               {m.changes && m.changes.length > 0 && (
                 <ul className="mt-2 space-y-1">
                   {m.changes.map((c, i) => (
-                    <li key={i} className="flex items-start gap-1.5 text-[11px] text-emerald-200/90">
+                    <li key={i} className="flex items-start gap-1.5 text-[13px] text-emerald-200/90">
                       <span className="mt-[3px] h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-300" />
                       {c}
                     </li>
@@ -93,16 +93,16 @@ export function CopilotPanel({ messages, thinking, onSend, canUndoLast, onUndoLa
                 </ul>
               )}
               {m.changes && m.changes.length > 0 && m.id === lastAssistant?.id && canUndoLast && (
-                <button type="button" onClick={onUndoLast} className="mt-2 text-[11px] font-semibold text-white/50 underline-offset-2 hover:text-white hover:underline">
+                <button type="button" onClick={onUndoLast} className="mt-2 text-[13px] font-semibold text-white/50 underline-offset-2 hover:text-white hover:underline">
                   Undo these changes
                 </button>
               )}
               {m.proposals?.map((p, i) => (
                 <div key={i} className="mt-2 rounded-xl border border-violet-400/25 bg-violet-400/[0.06] p-2.5">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-violet-200">Deep re-master suggestion</p>
-                  {p.reason && <p className="mt-1 text-[11px] text-white/70">{p.reason}</p>}
-                  <p className="mt-1 text-[10px] text-white/40">Re-runs the full AI chain (takes a little while). Your table edits stay.</p>
-                  <button type="button" onClick={() => onRunRemaster(p.overrides)} className="mt-2 rounded-lg border border-violet-300/40 bg-violet-400/15 px-2.5 py-1 text-[11px] font-semibold text-violet-100 transition hover:bg-violet-400/25">
+                  <p className="text-xs font-bold text-violet-200">Deep re-master suggestion</p>
+                  {p.reason && <p className="mt-1 text-[13px] text-white/70">{p.reason}</p>}
+                  <p className="mt-1 text-xs text-white/40">Re-runs the full AI chain (takes a little while). Your table edits stay.</p>
+                  <button type="button" onClick={() => onRunRemaster(p.overrides)} className="mt-2 rounded-lg border border-violet-300/40 bg-violet-400/15 px-2.5 py-1 text-[13px] font-semibold text-violet-100 transition hover:bg-violet-400/25">
                     Run deep re-master
                   </button>
                 </div>
@@ -112,11 +112,11 @@ export function CopilotPanel({ messages, thinking, onSend, canUndoLast, onUndoLa
         ))}
 
         {thinking && (
-          <div className="flex items-center gap-2 text-[11px] text-white/45">
+          <div className="flex items-center gap-2 text-[13px] text-white/45">
             <span className="flex gap-1">
-              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-300 [animation-delay:-0.2s]" />
-              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-300 [animation-delay:-0.1s]" />
-              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-300" />
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-300 [animation-delay:-0.2s]" />
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-300 [animation-delay:-0.1s]" />
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-300" />
             </span>
             Listening to your song…
           </div>
@@ -124,7 +124,7 @@ export function CopilotPanel({ messages, thinking, onSend, canUndoLast, onUndoLa
       </div>
 
       <div className="border-t border-white/[0.06] p-3">
-        {contextHint && <p className="mb-1.5 truncate text-[10px] text-white/35">Context: {contextHint}</p>}
+        {contextHint && <p className="mb-1.5 truncate text-xs text-white/35">Context: {contextHint}</p>}
         <div className="flex items-end gap-2 rounded-xl border border-white/10 bg-black/40 p-2 focus-within:border-cyan-400/40">
           <textarea
             value={text}
@@ -144,7 +144,7 @@ export function CopilotPanel({ messages, thinking, onSend, canUndoLast, onUndoLa
             type="button"
             onClick={() => submit(text)}
             disabled={thinking || !text.trim()}
-            className="rounded-lg bg-cyan-400 px-3 py-1.5 text-[11px] font-bold text-black transition hover:bg-cyan-300 disabled:opacity-30"
+            className="rounded-lg bg-cyan-400 px-3 py-1.5 text-[13px] font-bold text-black transition hover:bg-cyan-300 disabled:opacity-30"
           >
             Send
           </button>

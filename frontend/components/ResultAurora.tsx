@@ -109,7 +109,7 @@ export function ResultAurora({
               </div>
             </div>
             <Link
-              href="/"
+              href="/studio"
               className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-mist-200/55 transition hover:bg-white/[0.07] hover:text-mist-200"
             >
               <svg width="11" height="11" viewBox="0 0 11 11" fill="none">

@@ -1,5 +1,6 @@
 import { RefObject } from "react";
 import { UserTier, TierConfig } from "@/lib/tier";
+import type { Desk, DeskKey, DeskTweaks } from "@/lib/desk";
 
 export interface UploadProps {
   dragOver: boolean;
@@ -34,4 +35,9 @@ export interface UploadProps {
   styleFamily: string;
   setStyleFamily: (val: string) => void;
   STYLE_FAMILIES: { value: string; label: string; hint: string }[];
+  desk: Desk;
+  deskTweaks: DeskTweaks;
+  canEditDesk: boolean;
+  onDeskChange: (key: DeskKey, value: number) => void;
+  onDeskReset: () => void;
 }

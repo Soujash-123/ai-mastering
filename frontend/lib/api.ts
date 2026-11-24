@@ -117,6 +117,8 @@ export async function createJob(
   userIntent: string,
   ephemeral = true,
   styleFamily = "auto",
+  /** Creative desk tweaks as JSON (EARLY_ACCESS/ADMIN); the backend ignores it for ROLLOUT. */
+  creative?: string,
 ) {
   const fd = new FormData();
   fd.append("file", file);
@@ -124,6 +126,7 @@ export async function createJob(
   fd.append("user_intent", userIntent);
   fd.append("style_family", styleFamily);
   fd.append("ephemeral", String(ephemeral));
+  if (creative) fd.append("creative", creative);
   const res = await fetch(apiUrl("/api/jobs"), {
     method: "POST",
     headers: authHeaders(),

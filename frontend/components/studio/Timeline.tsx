@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fmtTime } from "@/lib/studio/dsp";
 import type { Region } from "@/lib/studio/types";
+import { alpha, resolve } from "@/lib/colors";
 
 type Drag =
   | { kind: "seek-or-create"; x0: number; t0: number; moved: boolean }
@@ -25,19 +26,19 @@ export type TimelineProps = {
 };
 
 const SECTION_COLORS: Record<string, string> = {
-  intro: "#64748b",
-  verse: "#22d3ee",
-  pre: "#a78bfa",
-  chorus: "#f472b6",
-  hook: "#f472b6",
-  bridge: "#facc15",
-  drop: "#fb7185",
-  outro: "#64748b",
+  intro: "rgb(var(--k-mid))",
+  verse: "rgb(var(--k-accent))",
+  pre: "rgb(var(--k-second))",
+  chorus: "rgb(var(--k-second))",
+  hook: "rgb(var(--k-second))",
+  bridge: "rgb(var(--k-accent))",
+  drop: "rgb(var(--k-second))",
+  outro: "rgb(var(--k-mid))",
 };
 
 function sectionColor(name: string) {
   const key = Object.keys(SECTION_COLORS).find((k) => name.toLowerCase().startsWith(k));
-  return key ? SECTION_COLORS[key] : "#94a3b8";
+  return key ? SECTION_COLORS[key] : "rgb(var(--k-mid))";
 }
 
 export function Timeline(props: TimelineProps) {
@@ -83,9 +84,9 @@ export function Timeline(props: TimelineProps) {
     const mid = h / 2;
     const n = peaks.length || 1;
     const grad = g.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0, "rgba(34,211,238,0.85)");
-    grad.addColorStop(0.5, "rgba(167,139,250,0.75)");
-    grad.addColorStop(1, "rgba(34,211,238,0.85)");
+    grad.addColorStop(0, resolve("rgb(var(--k-accent) / 0.85)"));
+    grad.addColorStop(0.5, resolve("rgb(var(--k-alert) / 0.75)"));
+    grad.addColorStop(1, resolve("rgb(var(--k-accent) / 0.85)"));
     g.fillStyle = grad;
     for (let x = 0; x < width; x++) {
       const i0 = Math.floor((x / width) * n);
@@ -95,7 +96,7 @@ export function Timeline(props: TimelineProps) {
       const amp = Math.max(1, p * (mid - 4));
       g.fillRect(x, mid - amp, 1, amp * 2);
     }
-    g.fillStyle = "rgba(255,255,255,0.08)";
+    g.fillStyle = resolve("rgb(var(--k-paper) / 0.08)");
     g.fillRect(0, mid, width, 1);
   }, [peaks, width]);
 
@@ -171,11 +172,11 @@ export function Timeline(props: TimelineProps) {
             key={`${s.section}-${i}`}
             onClick={() => onSeek(s.start_sec)}
             title={`${s.section} · ${fmtTime(s.start_sec)}–${fmtTime(s.end_sec)} (click to jump)`}
-            className="absolute top-0 h-5 truncate rounded-[5px] px-1.5 text-left text-[9px] font-bold uppercase tracking-wider transition hover:brightness-125"
+            className="absolute top-0 h-5 truncate rounded-[5px] px-1.5 text-left text-[11px] font-bold transition hover:brightness-125"
             style={{
               left: pct(s.start_sec),
               width: `calc(${pct(Math.max(0, s.end_sec - s.start_sec))} - 2px)`,
-              background: `${sectionColor(s.section)}1f`,
+              background: `${alpha(sectionColor(s.section), 0.12)}`,
               color: sectionColor(s.section),
               borderLeft: `2px solid ${sectionColor(s.section)}`,
             }}
@@ -202,7 +203,7 @@ export function Timeline(props: TimelineProps) {
 
         {regions.map((r) => {
           const sel = r.id === selectedId;
-          const tone = r.gain_db >= 0 ? "52,211,153" : "251,113,133";
+          const tone = r.gain_db >= 0 ? "235,166,28" : "226,71,111";
           return (
             <div
               key={r.id}
@@ -218,7 +219,7 @@ export function Timeline(props: TimelineProps) {
             >
               <div className="absolute left-0 inset-y-0 w-2 cursor-ew-resize hover:bg-white/20" onPointerDown={(e) => startRegionDrag(e, r, "start")} />
               <div className="absolute right-0 inset-y-0 w-2 cursor-ew-resize hover:bg-white/20" onPointerDown={(e) => startRegionDrag(e, r, "end")} />
-              <div className="pointer-events-none absolute left-2 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white/90">
+              <div className="pointer-events-none absolute left-2 top-1.5 flex items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-xs font-semibold text-white/90">
                 {r.label || "Region"}
                 <span style={{ color: `rgb(${tone})` }}>{r.gain_db > 0 ? "+" : ""}{r.gain_db.toFixed(1)} dB</span>
               </div>
@@ -230,12 +231,12 @@ export function Timeline(props: TimelineProps) {
           <div className="pointer-events-none absolute inset-y-0 border-x border-emerald-300/70 bg-emerald-300/15" style={{ left: pct(draft.start), width: pct(draft.end - draft.start) }} />
         )}
 
-        <div ref={headRef} className="pointer-events-none absolute inset-y-0 w-px bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]" style={{ left: 0 }}>
+        <div ref={headRef} className="pointer-events-none absolute inset-y-0 w-px bg-white" style={{ left: 0 }}>
           <div className="absolute -top-0.5 -left-[5px] h-0 w-0 border-x-[5px] border-t-[6px] border-x-transparent border-t-white" />
         </div>
       </div>
 
-      <div className="flex items-center justify-between text-[10px] text-white/35">
+      <div className="flex items-center justify-between text-xs text-white/35">
         <span ref={timeRef} className="tabular-nums text-white/70">0:00.0</span>
         <span>Click to seek · drag on the waveform to create a region · drag a region to move it</span>
         <span className="tabular-nums">{fmtTime(duration)}</span>

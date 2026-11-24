@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from mastering.creative import CreativeControls, apply_creative
 from mastering.dsp_params import SafeDSPParams
 from mastering.style_profiles import apply_style_profile, clamp_target_lufs, get_style_profile
 from models.mastering_intent import MasteringIntent
@@ -18,11 +19,14 @@ def intent_to_safe_params(
     measured_integrated_lufs: float,
     style_family: str = "auto",
     source_lossy: bool = False,
+    creative: CreativeControls | None = None,
 ) -> tuple[MasteringIntent, SafeDSPParams]:
     """Returns (clamped intent copy, DSP parameters).
 
     `style_family` selects a style envelope (see mastering/style_profiles.py)
     that narrows the generic limits; "auto" leaves them unchanged.
+    `creative` holds the artist's desk nudges (mastering/creative.py). They are
+    applied before the style envelope, so the envelope still has the last word.
     """
     profile = get_style_profile(style_family)
     eq = intent.eq_strategy
@@ -147,5 +151,15 @@ def intent_to_safe_params(
         center_anchor=n10(spatial.center_image_strength),
         sub_mono_strength=clamp(0.75 + n10(spatial.mono_compatibility_priority) * 0.2, 0.7, 0.98),
     )
+    params = apply_creative(params, creative, profile)
     params = apply_style_profile(params, profile, source_lossy=source_lossy)
+    if creative is not None and creative.loudness != 0:
+        # Keep the reported target in step with what the desk asked for.
+        safe_intent = safe_intent.model_copy(
+            update={
+                "loudness_strategy": safe_intent.loudness_strategy.model_copy(
+                    update={"target_lufs": params.target_lufs}
+                )
+            }
+        )
     return safe_intent, params

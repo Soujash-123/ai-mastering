@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { DSP_GROUPS, formatParamValue, paramIsBase } from "@/lib/dsp";
+import { alpha } from "@/lib/colors";
 
 export type PreviewMode = "window" | "full";
 
@@ -52,21 +53,21 @@ function Slider({
     <div className="group">
       <div className="flex items-center justify-between mb-1.5 gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[11px] font-bold text-white/85 truncate">{label}</span>
+          <span className="text-[13px] font-bold text-white/85 truncate">{label}</span>
           {!isBase && (
             <button
               type="button"
               onClick={onReset}
               title={`Reset ${label} to AI master`}
-              className="shrink-0 text-[8px] font-bold uppercase tracking-wider text-cyan-400/70 hover:text-cyan-300 transition-colors"
+              className="shrink-0 text-[11px] font-bold text-cyan-400/70 hover:text-cyan-300 transition-colors"
             >
               reset
             </button>
           )}
         </div>
         <span
-          className="shrink-0 font-mono text-[11px] font-bold px-2 py-0.5 rounded-md border"
-          style={{ color: accent, borderColor: `${accent}40`, background: `${accent}0d` }}
+          className="shrink-0 font-mono text-[13px] font-bold px-2 py-0.5 rounded-md border"
+          style={{ color: accent, borderColor: `${alpha(accent, 0.25)}`, background: `${alpha(accent, 0.05)}` }}
         >
           {formatParamValue(slKey, finite ? value : Number.NaN)}
         </span>
@@ -82,9 +83,9 @@ function Slider({
         style={{ accentColor: accent }}
       />
       <div className="flex justify-between mt-1 gap-2">
-        <span className="text-[9px] text-white/25">{min}</span>
-        <span className="text-[9px] text-white/35 truncate">{hint}</span>
-        <span className="text-[9px] text-white/25">{max}</span>
+        <span className="text-[11px] text-white/25">{min}</span>
+        <span className="text-[11px] text-white/35 truncate">{hint}</span>
+        <span className="text-[11px] text-white/25">{max}</span>
       </div>
     </div>
   );
@@ -117,29 +118,29 @@ export function DSPControlPanel({
   };
 
   return (
-    <div className="relative rounded-3xl border border-cyan-400/15 bg-[#09090b]/80 backdrop-blur-xl shadow-[0_0_0_1px_rgba(34,211,238,0.05),0_32px_60px_rgba(0,0,0,0.5)] overflow-hidden">
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-cyan-400/[0.02] to-transparent" />
+    <div className="relative rounded-3xl border border-cyan-400/15 bg-[rgb(var(--k-ink))]/80 backdrop-blur-xl overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 bg-cyan-400/[0.02]" />
 
       <div className="p-6 md:p-8">
         {/* Header */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-sm font-bold uppercase tracking-[0.15em] text-cyan-400">
+            <h2 className="text-sm font-bold text-cyan-400">
               DSP Control Panel
             </h2>
-            <p className="text-[11px] text-white/40 mt-1">
+            <p className="text-[13px] text-white/40 mt-1">
               Tune the mastering chain. The preview updates live — render your final master when it sounds right.
             </p>
           </div>
           <div className="flex items-center gap-3">
             {rendering && (
-              <div className="flex items-center gap-2 text-[11px] text-cyan-200/70">
+              <div className="flex items-center gap-2 text-[13px] text-cyan-200/70">
                 <div className="h-3 w-3 animate-spin rounded-full border border-white/15 border-t-cyan-400" />
                 Rendering preview…
               </div>
             )}
             {finalized && !dirty && (
-              <span className="px-2.5 py-1 rounded-full border border-lime-400/40 bg-lime-400/10 text-[9px] font-bold uppercase tracking-widest text-lime-400">
+              <span className="px-2.5 py-1 rounded-full border border-lime-400/40 bg-lime-400/10 text-[11px] font-bold text-lime-400">
                 Final master rendered
               </span>
             )}
@@ -147,7 +148,7 @@ export function DSPControlPanel({
               type="button"
               onClick={onReset}
               disabled={disabled}
-              className="px-3 py-1.5 rounded-lg border border-white/10 text-[11px] font-bold text-white/60 hover:text-white hover:border-white/25 transition-all disabled:opacity-40"
+              className="px-3 py-1.5 rounded-lg border border-white/10 text-[13px] font-bold text-white/60 hover:text-white hover:border-white/25 transition-all disabled:opacity-40"
             >
               Reset to AI Master
             </button>
@@ -163,8 +164,8 @@ export function DSPControlPanel({
             { label: "State", val: rendering ? "Rendering" : finalizing ? "Finalizing" : "Preview" },
           ].map((s) => (
             <div key={s.label} className="rounded-xl border border-cyan-400/10 bg-black/40 px-4 py-3 text-center">
-              <div className="font-mono text-lg font-black text-transparent bg-clip-text bg-gradient-to-br from-cyan-400 to-lime-400">{s.val}</div>
-              <div className="text-[8px] uppercase tracking-[0.15em] text-cyan-200/40 mt-0.5">{s.label}</div>
+              <div className="font-mono text-lg font-black text-cyan-400">{s.val}</div>
+              <div className="text-[11px] text-cyan-200/40 mt-0.5">{s.label}</div>
             </div>
           ))}
         </div>
@@ -180,8 +181,8 @@ export function DSPControlPanel({
           {DSP_GROUPS.map((group) => (
             <div key={group.id}>
               <div className="flex items-center gap-2 mb-5">
-                <span className="w-2 h-2 rounded-full" style={{ background: group.accent, boxShadow: `0 0 8px ${group.accent}` }} />
-                <h3 className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: group.accent }}>
+                <span className="w-2 h-2 rounded-full" style={{ background: group.accent }} />
+                <h3 className="text-xs font-bold " style={{ color: group.accent }}>
                   {group.label}
                 </h3>
               </div>
@@ -210,14 +211,14 @@ export function DSPControlPanel({
         {/* Footer actions */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 border-t border-white/[0.06] pt-6">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-white/40">
+            <span className="text-xs font-bold text-white/40">
               Preview scope
             </span>
             <div className="flex items-center rounded-xl border border-cyan-400/20 overflow-hidden">
               <button
                 type="button"
                 onClick={() => onPreviewModeChange("window")}
-                className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all ${
+                className={`px-3 py-1.5 text-xs font-bold transition-all ${
                   previewMode === "window"
                     ? "bg-cyan-400/20 text-cyan-300"
                     : "bg-transparent text-white/40 hover:text-white/70"
@@ -228,7 +229,7 @@ export function DSPControlPanel({
               <button
                 type="button"
                 onClick={() => onPreviewModeChange("full")}
-                className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all ${
+                className={`px-3 py-1.5 text-xs font-bold transition-all ${
                   previewMode === "full"
                     ? "bg-cyan-400/20 text-cyan-300"
                     : "bg-transparent text-white/40 hover:text-white/70"
@@ -246,11 +247,11 @@ export function DSPControlPanel({
               onFinalize();
             }}
             disabled={disabled || rendering || finalizing}
-            className="flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold text-[#09090b] bg-gradient-to-r from-cyan-400 to-lime-400 rounded-xl hover:brightness-110 shadow-[0_0_24px_rgba(34,211,238,0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center justify-center gap-2 px-6 py-3 text-sm font-bold text-[rgb(var(--k-ink))] bg-cyan-400 rounded-xl hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {finalizing ? (
               <>
-                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#09090b]/30 border-t-[#09090b]" />
+                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[rgb(var(--k-ink))]/30 border-t-[rgb(var(--k-ink))]" />
                 Rendering final master…
               </>
             ) : (

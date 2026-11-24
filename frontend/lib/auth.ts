@@ -93,6 +93,12 @@ export function canAccessMasteringTable(role: UserRole): boolean {
   return role === "ADMIN" || role === "EARLY_ACCESS";
 }
 
+/** Creative desk tweaks on the upload page: EARLY_ACCESS + ADMIN (see Access_RULE.md).
+ *  Everyone sees the desk follow the chosen style; only these roles can move it. */
+export function canAccessCreativeDesk(role: UserRole): boolean {
+  return role === "ADMIN" || role === "EARLY_ACCESS";
+}
+
 export function canUsePromptTab(role: UserRole): boolean {
   return role === "ADMIN" || role === "ROLLOUT";
 }

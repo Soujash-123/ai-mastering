@@ -32,7 +32,7 @@ export function JobPreviewContent({ jobId, data }: Props) {
     >
       <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <motion.div>
-          <p className="text-xs uppercase tracking-[0.2em] text-neon-purple">Master preview</p>
+          <p className="text-xs text-neon-purple">Master preview</p>
           <h1 className="mt-2 text-3xl font-bold sm:text-4xl">Before &amp; After</h1>
         </motion.div>
         <Link href={`/export/${jobId}`}>

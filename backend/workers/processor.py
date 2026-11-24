@@ -12,7 +12,10 @@ from analysis.slim import slim_analysis_for_dsp
 from api.schemas import JobStatus
 from exports.pcm_export import export_all_artifacts
 from llm.intent import generate_mastering_plan
+from api.result_builder import _waveform_peaks
 from mastering.chain import master_file
+from mastering.creative import effective_desk
+from mastering.section_automation import section_amounts
 from mastering.preview import save_render_context
 from mastering.safety import intent_to_safe_params
 from mastering.style_profiles import get_style_profile
@@ -26,6 +29,37 @@ from auth.models import User as UserModel
 logger = logging.getLogger(__name__)
 
 
+def _live_view_song(analysis: dict[str, Any]) -> dict[str, Any]:
+    """Waveform and section times for the processing page (no DSP values yet)."""
+    sections = [
+        {
+            "label": str(r.get("section", "verse")).split("+")[0],
+            "start": round(float(r.get("start_sec", 0.0)), 2),
+            "end": round(float(r.get("end_sec", 0.0)), 2),
+        }
+        for r in list(analysis.get("sectional_analysis") or [])
+        if float(r.get("end_sec", 0.0)) > float(r.get("start_sec", 0.0))
+    ]
+    return {
+        "version": 1,
+        "duration": round(float(analysis.get("duration_sec") or 0.0), 2),
+        "peaks": [round(p, 3) for p in _waveform_peaks(analysis)],
+        "sections": sections,
+    }
+
+
+def _live_view_params(p: Any) -> dict[str, float]:
+    """The DSP values the artist can relate to, rounded for display."""
+    keys = (
+        "low_shelf_db", "mid_peak_db", "high_shelf_db", "dynamic_eq_strength", "resonance_suppression",
+        "low_ratio", "mid_ratio", "high_ratio", "mb_attack_ms", "mb_release_ms",
+        "perceptual_density", "saturation_amount", "harmonic_low", "harmonic_mid", "harmonic_high",
+        "exciter_amount", "stereo_width_factor", "sub_mono_strength", "clip_drive", "limiter_drive",
+        "transient_blend", "transient_restore", "target_lufs", "true_peak_ceiling_db",
+    )
+    return {k: round(float(getattr(p, k)), 3) for k in keys if hasattr(p, k)}
+
+
 async def process_job(job_id: str, target_platform: str, user_intent: str) -> None:
     settings = get_settings()
     rec = await job_store.get(job_id)
@@ -37,6 +71,8 @@ async def process_job(job_id: str, target_platform: str, user_intent: str) -> No
         await job_store.update(job_id, status=status, progress=progress, message=message)
 
     tracker, tracker_token = activate_job_memory_tracker(job_id)
+    # Live view: the processing page shows which step is running right now.
+    tracker.on_step = lambda name: setattr(rec, "stage", name)
     try:
         logger.info("Job %s: started (platform=%s, input=%s)", job_id, target_platform, rec.input_path)
         await bump(JobStatus.analyzing, 0.1, "Analyzing audio…")
@@ -56,18 +92,23 @@ async def process_job(job_id: str, target_platform: str, user_intent: str) -> No
         analysis["source_format"] = rec.source_format
         analysis["source_lossy"] = bool(rec.source_lossy)
         await job_store.update(job_id, analysis=analysis)
+        # Live view, part 1: the song itself (waveform + detected sections).
+        rec.live_view = _live_view_song(analysis)
 
         await bump(JobStatus.reasoning, 0.35, "Generating adaptive mastering strategy…")
         logger.info("Job %s: LLM strategy step started", job_id)
         with memory_step("llm_strategy"):
             intent, report, raw = await asyncio.to_thread(generate_mastering_plan, analysis)
         logger.info("Job %s: LLM strategy step completed", job_id)
+        # Desk = the style's starting position + the artist's tweaks (EA/Admin only).
+        desk = effective_desk(style.key, rec.creative)
         with memory_step("dsp_safety_mapping"):
             safe_intent, params = intent_to_safe_params(
                 intent,
                 float(analysis.get("integrated_lufs", -14.0)),
                 style_family=style.key,
                 source_lossy=bool(rec.source_lossy),
+                creative=desk,
             )
             llm_modifiers = (
                 [s.model_dump() for s in safe_intent.sectional_processing]
@@ -75,6 +116,16 @@ async def process_job(job_id: str, target_platform: str, user_intent: str) -> No
                 else None
             )
             analysis_dsp = slim_analysis_for_dsp(analysis, llm_modifiers)
+            # Live view, part 2: what the engine will apply, per section.
+            rec.live_view = {
+                **(rec.live_view or {}),
+                "sections": section_amounts(analysis_dsp),
+                "params": _live_view_params(params),
+                "desk": desk.model_dump(),
+                "tweaks": rec.creative,
+                "style": style.key,
+                "version": 2,
+            }
             del analysis
             gc.collect()
         logger.info(

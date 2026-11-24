@@ -402,7 +402,7 @@ export function MasteringTable({ initial }: { initial: StudioData }) {
   const peakColor = meters.peakDb > -1 ? "text-rose-300" : meters.peakDb > -6 ? "text-amber-200" : "text-emerald-300";
 
   return (
-    <div className="fixed inset-0 z-[70] flex flex-col bg-[#09090b] text-white font-outfit">
+    <div className="fixed inset-0 z-[70] flex flex-col bg-[rgb(var(--k-ink))] text-white font-outfit">
       {/* Top bar */}
       <header className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-white/[0.06] px-5 py-3">
         <div className="flex items-center gap-3 min-w-0">
@@ -412,9 +412,9 @@ export function MasteringTable({ initial }: { initial: StudioData }) {
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="text-[14px] font-bold tracking-tight">Mastering Table</h1>
-              <span className="rounded-md bg-gradient-to-r from-violet-400 to-cyan-400 px-1.5 py-0.5 text-[9px] font-black tracking-widest text-black">BETA</span>
+              <span className="rounded-md bg-violet-400 px-1.5 py-0.5 text-[11px] font-black text-black">BETA</span>
             </div>
-            <p className="truncate text-[11px] text-white/40">
+            <p className="truncate text-[13px] text-white/40">
               {data.title}
               {data.style.label ? ` · ${data.style.label}` : ""}
             </p>
@@ -432,11 +432,11 @@ export function MasteringTable({ initial }: { initial: StudioData }) {
             >
               {presetIdx < 0 && <option value="custom">Custom*</option>}
               {presetKeys.map((k) => (
-                <option key={k} value={k} className="bg-[#111]">{spec.presets[k].label}</option>
+                <option key={k} value={k} className="bg-[rgb(var(--k-ink))]">{spec.presets[k].label}</option>
               ))}
             </select>
           </div>
-          <span className="text-[10px] text-white/35">
+          <span className="text-xs text-white/35">
             {saveState === "saving" ? "Saving…" : saveState === "error" ? "Couldn't save — retrying on next change" : "All changes saved"}
           </span>
         </div>
@@ -462,7 +462,7 @@ export function MasteringTable({ initial }: { initial: StudioData }) {
 
         <div className="ml-auto flex items-center gap-2">
           {hasSnapshot && (
-            <button type="button" onClick={revert} disabled={!!busy} className="rounded-xl border border-white/10 px-3 py-2 text-[11px] font-semibold text-white/70 transition hover:border-white/25 hover:text-white disabled:opacity-40">
+            <button type="button" onClick={revert} disabled={!!busy} className="rounded-xl border border-white/10 px-3 py-2 text-[13px] font-semibold text-white/70 transition hover:border-white/25 hover:text-white disabled:opacity-40">
               {busy === "revert" ? "Restoring…" : "Revert to AI master"}
             </button>
           )}
@@ -482,7 +482,7 @@ export function MasteringTable({ initial }: { initial: StudioData }) {
             type="button"
             onClick={commit}
             disabled={!!busy || session.committed}
-            className="rounded-xl bg-cyan-400 px-4 py-2 text-[12px] font-bold text-black shadow-[0_0_24px_rgba(34,211,238,0.25)] transition hover:bg-cyan-300 disabled:opacity-40"
+            className="rounded-xl bg-cyan-400 px-4 py-2 text-[12px] font-bold text-black transition hover:bg-cyan-300 disabled:opacity-40"
             title="Render these edits into your downloadable master"
           >
             {busy === "commit" ? "Rendering…" : session.committed ? "Applied ✓" : "Apply to master"}
@@ -505,7 +505,7 @@ export function MasteringTable({ initial }: { initial: StudioData }) {
               type="button"
               onClick={() => void togglePlay()}
               disabled={!engineReady}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.2)] transition hover:scale-105 disabled:opacity-40"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-black transition hover:scale-105 disabled:opacity-40"
               aria-label={playing ? "Pause" : "Play"}
               title="Play / pause (Space)"
             >
@@ -515,7 +515,7 @@ export function MasteringTable({ initial }: { initial: StudioData }) {
                 <svg width="14" height="14" viewBox="0 0 14 14"><path d="M3.5 2.2v9.6a.6.6 0 0 0 .9.5l7.6-4.8a.6.6 0 0 0 0-1L4.4 1.7a.6.6 0 0 0-.9.5z" fill="currentColor" /></svg>
               )}
             </button>
-            <button type="button" onClick={() => seek(0)} className="rounded-lg border border-white/10 px-2.5 py-2 text-[11px] text-white/60 hover:text-white" title="Back to start">⏮</button>
+            <button type="button" onClick={() => seek(0)} className="rounded-lg border border-white/10 px-2.5 py-2 text-[13px] text-white/60 hover:text-white" title="Back to start">⏮</button>
 
             <div className="flex rounded-xl border border-white/10 bg-white/[0.03] p-1" role="radiogroup" aria-label="Listen to">
               {([
@@ -529,7 +529,7 @@ export function MasteringTable({ initial }: { initial: StudioData }) {
                   role="radio"
                   aria-checked={mode === m}
                   onClick={() => setMode(m)}
-                  className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold transition ${mode === m ? "bg-white/15 text-white" : "text-white/45 hover:text-white"}`}
+                  className={`rounded-lg px-3 py-1.5 text-[13px] font-semibold transition ${mode === m ? "bg-white/15 text-white" : "text-white/45 hover:text-white"}`}
                   title={m === "original" ? "Level-matched so you compare tone, not volume" : undefined}
                 >
                   {label}
@@ -538,23 +538,23 @@ export function MasteringTable({ initial }: { initial: StudioData }) {
             </div>
 
             <div className="flex gap-1">
-              <button type="button" onClick={() => dispatch({ type: "undo" })} disabled={!store.past.length} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-[11px] text-white/60 hover:text-white disabled:opacity-30" title="Undo (⌘Z)">Undo</button>
-              <button type="button" onClick={() => dispatch({ type: "redo" })} disabled={!store.future.length} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-[11px] text-white/60 hover:text-white disabled:opacity-30" title="Redo (⇧⌘Z)">Redo</button>
+              <button type="button" onClick={() => dispatch({ type: "undo" })} disabled={!store.past.length} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-[13px] text-white/60 hover:text-white disabled:opacity-30" title="Undo (⌘Z)">Undo</button>
+              <button type="button" onClick={() => dispatch({ type: "redo" })} disabled={!store.future.length} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-[13px] text-white/60 hover:text-white disabled:opacity-30" title="Redo (⇧⌘Z)">Redo</button>
             </div>
 
             {loop && (
-              <button type="button" onClick={() => setLoop(null)} className="rounded-lg border border-amber-300/40 bg-amber-300/10 px-2.5 py-1.5 text-[11px] font-semibold text-amber-200">
+              <button type="button" onClick={() => setLoop(null)} className="rounded-lg border border-amber-300/40 bg-amber-300/10 px-2.5 py-1.5 text-[13px] font-semibold text-amber-200">
                 Loop {fmtTime(loop.start)}–{fmtTime(loop.end)} ✕
               </button>
             )}
 
             <div className="ml-auto flex items-center gap-4 rounded-xl border border-white/[0.06] bg-black/30 px-3 py-1.5 tabular-nums">
               <div className="text-right">
-                <p className="text-[9px] uppercase tracking-widest text-white/35">Loudness ≈</p>
+                <p className="text-[11px] text-white/35">Loudness ≈</p>
                 <p className="text-[13px] font-bold text-cyan-200">{meters.lufsM != null ? `${meters.lufsM.toFixed(1)} LUFS` : "—"}</p>
               </div>
               <div className="text-right">
-                <p className="text-[9px] uppercase tracking-widest text-white/35">Peak</p>
+                <p className="text-[11px] text-white/35">Peak</p>
                 <p className={`text-[13px] font-bold ${peakColor}`}>{Number.isFinite(meters.peakDb) ? `${meters.peakDb.toFixed(1)} dB` : "—"}</p>
               </div>
             </div>
@@ -577,9 +577,9 @@ export function MasteringTable({ initial }: { initial: StudioData }) {
 
           <div className={`min-h-0 ${thinking ? "pointer-events-none opacity-60" : ""}`}>
             <div className="mb-2 flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-[10px] font-black italic">Fx</span>
-              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/50">Mastering tools</p>
-              <p className="text-[10px] text-white/30">Changes are heard instantly · preview of the final render</p>
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/10 text-xs font-black italic">Fx</span>
+              <p className="text-[13px] font-bold text-white/50">Mastering tools</p>
+              <p className="text-xs text-white/30">Changes are heard instantly · preview of the final render</p>
             </div>
             <ModuleRack
               spec={spec}

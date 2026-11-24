@@ -1,8 +1,8 @@
 import React from "react";
 import Link from "next/link";
 import { type JobResult, type MasterInfo, apiUrl } from "@/lib/api";
-import { ANALYSIS_CARDS, AnalysisIcon, fmtTime, type ResultProps } from "./ResultAurora";
-import { NeonWaveformCanvas } from "./NeonWaveformCanvas";
+import { ANALYSIS_CARDS, fmtTime, type ResultProps } from "./ResultAurora";
+import s from "./result.module.css";
 
 function pickNum(v: unknown): number | null {
   if (typeof v === "number" && Number.isFinite(v)) return v;
@@ -20,28 +20,26 @@ function pickNum(v: unknown): number | null {
 function CloudMasterStatus({ jobId, master }: { jobId: string; master: MasterInfo | null | undefined }) {
   if (!master || master.state === "none") return null;
 
-  const shell = "rounded-3xl border border-white/5 bg-[#09090b]/60 backdrop-blur-md p-6";
-
   if (master.state === "failed") {
     return (
-      <div className={shell}>
-        <h2 className="text-sm font-bold uppercase tracking-[0.15em] text-white/50 mb-2">Cloud Storage</h2>
-        <p className="text-sm text-amber-300/80">
-          Your master was produced but could not be stored in the cloud. It is still available to
-          download from this page.
+      <section className={s.block} aria-labelledby="cloud-title">
+        <h2 id="cloud-title" className={s.h3}>Cloud copy</h2>
+        <p className={s.warn} style={{ marginTop: "0.5rem" }}>
+          Your master was produced but could not be stored in the cloud. It is still available to download from this
+          page.
         </p>
-      </div>
+      </section>
     );
   }
 
   if (master.state === "expired") {
     return (
-      <div className={shell}>
-        <h2 className="text-sm font-bold uppercase tracking-[0.15em] text-white/50 mb-2">Cloud Storage</h2>
-        <p className="text-sm text-white/40">
+      <section className={s.block} aria-labelledby="cloud-title">
+        <h2 id="cloud-title" className={s.h3}>Cloud copy</h2>
+        <p className={s.muted} style={{ marginTop: "0.5rem" }}>
           The retention window for this master has closed and the stored copy was deleted.
         </p>
-      </div>
+      </section>
     );
   }
 
@@ -50,35 +48,29 @@ function CloudMasterStatus({ jobId, master }: { jobId: string; master: MasterInf
     : null;
 
   return (
-    <div className={shell}>
-      <h2 className="text-sm font-bold uppercase tracking-[0.15em] text-white/50 mb-2">Cloud Storage</h2>
-      <div className="flex items-center justify-between gap-4">
-        <p className="text-sm text-white/60">
-          <span className="text-cyan-400 font-bold">{master.filename || "master.flac"}</span> stored in the cloud
-          {hoursLeft !== null && <span className="text-white/40"> · expires in ~{hoursLeft}h</span>}
-        </p>
-        {master.download_url && (
-          <a
-            href={apiUrl(`/api/jobs/${jobId}/master/download`)}
-            download
-            className="shrink-0 text-xs font-bold uppercase tracking-[0.15em] text-cyan-400 hover:text-cyan-300 transition-colors"
-          >
-            Download
-          </a>
-        )}
-      </div>
-    </div>
+    <section className={s.block} aria-labelledby="cloud-title">
+      <h2 id="cloud-title" className={s.h3}>Cloud copy</h2>
+      <p className={s.muted} style={{ marginTop: "0.5rem" }}>
+        <strong style={{ color: "rgb(var(--k-paper))" }}>{master.filename || "master.flac"}</strong> is stored in the cloud
+        {hoursLeft !== null && <> and expires in about {hoursLeft} h</>}.
+      </p>
+      {master.download_url && (
+        <a href={apiUrl(`/api/jobs/${jobId}/master/download`)} download className={s.textBtn}>
+          Download the cloud copy
+        </a>
+      )}
+    </section>
   );
 }
 
 const BAR_META = [
-  { label: "Warmth", desc: "Low-mid body", icon: "🔥", color: "#22d3ee" },
-  { label: "Brightness", desc: "Clarity & air", icon: "✨", color: "#a3e635" },
-  { label: "Punch", desc: "Transient impact", icon: "⚡", color: "#f472b6" },
-  { label: "Width", desc: "Spatial depth", icon: "↔", color: "#22d3ee" },
+  { label: "Warmth", desc: "Low-mid body" },
+  { label: "Brightness", desc: "Clarity and air" },
+  { label: "Punch", desc: "Transient impact" },
+  { label: "Width", desc: "Stereo space" },
 ];
 
-function NeonIntensityBars({ intent }: { intent: Record<string, unknown> | null | undefined }) {
+function IntentMeters({ intent }: { intent: Record<string, unknown> | null | undefined }) {
   if (!intent) return null;
   const eq = intent.eq_strategy as Record<string, unknown> | undefined;
   const comp = intent.compression_strategy as Record<string, unknown> | undefined;
@@ -91,28 +83,26 @@ function NeonIntensityBars({ intent }: { intent: Record<string, unknown> | null 
     pickNum(spat?.stereo_width_amount),
   ];
 
-  if (!values.some((v) => v != null)) return <p className="text-sm text-white/40">No DSP intent recorded.</p>;
+  if (!values.some((v) => v != null)) return <p className={s.muted}>No DSP intent recorded.</p>;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className={s.meters}>
       {BAR_META.map((meta, i) => {
         const val = values[i];
         if (val == null) return null;
-        const pct = (Math.min(10, Math.max(0, val)) / 10) * 100;
+        const lit = Math.round(Math.min(10, Math.max(0, val)));
         return (
-          <div key={meta.label}>
-            <div className="flex justify-between items-end mb-2">
-              <div>
-                <span className="text-xs font-bold uppercase tracking-widest text-white/80">{meta.label}</span>
-                <p className="text-[10px] text-white/40 mt-0.5">{meta.desc}</p>
-              </div>
-              <span className="font-mono text-xl font-black" style={{ color: meta.color }}>{val.toFixed(1)}</span>
+          <div key={meta.label} className={s.meterRow}>
+            <div className={s.meterTop}>
+              <span>
+                <strong>{meta.label}</strong> <span className={s.meterDesc}>{meta.desc}</span>
+              </span>
+              <span className={`${s.mono} ${s.meterValue}`}>{val.toFixed(1)}</span>
             </div>
-            <div className="relative h-2 w-full bg-black/50 rounded-full overflow-hidden border border-white/5">
-              <div 
-                className="absolute top-0 left-0 h-full rounded-full transition-all duration-1000 shadow-[0_0_15px_currentColor]"
-                style={{ width: `${pct}%`, backgroundColor: meta.color, color: meta.color }}
-              />
+            <div className={s.meterTrack} role="img" aria-label={`${meta.label} ${val.toFixed(1)} out of 10`}>
+              {Array.from({ length: 10 }, (_, k) => (
+                <span key={k} data-lit={k < lit || undefined} />
+              ))}
             </div>
           </div>
         );
@@ -121,6 +111,8 @@ function NeonIntensityBars({ intent }: { intent: Record<string, unknown> | null 
   );
 }
 
+// Result screen. Visual layer only: every prop, ref and callback comes from
+// app/(app)/result/[jobId]/page.tsx unchanged.
 export function ResultNeon({
   jobId, data, urls, tierCfg, masterBars, isPlaying, showComparison,
   currentTime, duration, copiedId, onCopyId, onTogglePlay, onToggleComparison,
@@ -133,315 +125,215 @@ export function ResultNeon({
   const intLufs = analysis?.integrated_lufs != null ? `${Number(analysis.integrated_lufs).toFixed(1)} LUFS` : "—";
   const tgtLufs = (safeIntent?.loudness_strategy as Record<string, unknown>)?.target_lufs != null ? `${Number((safeIntent.loudness_strategy as Record<string, unknown>).target_lufs).toFixed(1)} LUFS` : "—";
   const downloadHref = downloadUrl ?? urls.out;
+  const hasDur = Number.isFinite(duration) && duration > 0;
+  const frac = hasDur ? Math.min(1, Math.max(0, currentTime / duration)) : 0;
+  const bars = masterBars.length > 0 ? masterBars : Array.from({ length: 100 }, () => 0.25);
+  const report = data.report as Record<string, unknown>;
 
   return (
-    <div className="min-h-[calc(100vh-53px)] relative overflow-hidden font-outfit text-white/90 pb-20">
-      {/* Background Grids & Glows from Neon Theme */}
-      <div className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:60px_60px] [mask-image:radial-gradient(ellipse_80%_70%_at_50%_30%,black_20%,transparent_100%)]" />
-      <div className="pointer-events-none absolute top-[-15%] left-1/2 w-[600px] h-[600px] -translate-x-1/2 bg-[radial-gradient(circle,rgba(34,211,238,0.07)_0%,transparent_65%)] z-0" />
-      <div className="pointer-events-none absolute bottom-[10%] right-[-5%] w-[350px] h-[350px] bg-[radial-gradient(circle,rgba(163,230,53,0.05)_0%,transparent_65%)] z-0" />
+    <main className={s.page}>
+      <header className={s.head}>
+        <div>
+          <h1 className={s.h1}>{isFinalized ? "Your master is ready" : "Preview your master"}</h1>
+          <p className={s.job}>
+            <span>
+              Job <span className={s.mono}>{jobId}</span>
+            </span>
+            <button type="button" onClick={onCopyId} className={s.textBtn}>
+              {copiedId ? "Copied" : "Copy job ID"}
+            </button>
+          </p>
+        </div>
+        <div className={s.actions}>
+          <Link href="/studio" className={s.btnLine}>
+            Master another track
+          </Link>
+          <a href={downloadHref} download className={s.btn}>
+            <svg width="16" height="16" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+              <path d="M7 2v7M7 9l-3-3M7 9l3-3M2 12h10" stroke="currentColor" strokeWidth="2" strokeLinecap="square" />
+            </svg>
+            Download master
+          </a>
+        </div>
+      </header>
 
-      <main className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 pt-6 pb-20">
-        {/* Wave Hero */}
-        <div className="relative w-full h-[160px] -mb-10">
-          <NeonWaveformCanvas />
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#09090b] pointer-events-none" />
+      <dl className={s.readouts}>
+        {[
+          { label: "Original loudness", val: intLufs },
+          { label: "Target loudness", val: liveTargetLufs ?? tgtLufs },
+          { label: "Resolution", val: "24-bit" },
+          { label: "Download format", val: "FLAC" },
+        ].map((r) => (
+          <div key={r.label}>
+            <dt>{r.label}</dt>
+            <dd className={s.mono}>{r.val}</dd>
+          </div>
+        ))}
+      </dl>
+
+      {/* Playback */}
+      <section className={s.block} aria-labelledby="listen-title">
+        <div className={s.blockHead}>
+          <h2 id="listen-title" className={s.h2}>Listen to the master</h2>
+          {tierCfg.canPlaySimulations ? (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={showComparison}
+              onClick={onToggleComparison}
+              className={s.switch}
+            >
+              <span className={s.switchTrack} aria-hidden="true" />
+              Compare with original
+            </button>
+          ) : (
+            <span className={s.locked}>Compare with original: Early Access</span>
+          )}
         </div>
 
-        {/* Header Section */}
-        <header className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 mb-4 rounded-full border border-cyan-400/20 bg-cyan-400/5 text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
-              {isFinalized ? "Analysis Complete" : "Live Preview"}
-            </div>
-            <h1 className="text-4xl md:text-5xl font-black tracking-tight mb-3">
-              Mastering <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-lime-400">{isFinalized ? "Finalized" : "Preview"}</span>
-            </h1>
-            <div className="flex items-center gap-3">
-              <span className="font-mono text-xs text-cyan-200/40">ID: {jobId}</span>
-              <button type="button" onClick={onCopyId} className="px-2 py-1 rounded border border-white/5 bg-white/5 text-[10px] font-bold uppercase tracking-wider text-cyan-200/60 hover:text-cyan-400 hover:border-cyan-400/30 transition-all">
-                {copiedId ? "Copied" : "Copy ID"}
-              </button>
-            </div>
-          </div>
-
-          <div className="flex gap-4">
-            <Link
-              href="/"
-              className="flex items-center gap-2 px-6 py-3 text-sm font-bold text-white/60 bg-transparent border border-white/10 rounded-xl hover:text-white hover:bg-white/5 transition-all"
-            >
-              Start New
-            </Link>
-            <a
-              href={downloadHref}
-              download
-              className="flex items-center gap-2 px-6 py-3 text-sm font-bold text-[#09090b] bg-cyan-400 rounded-xl hover:bg-cyan-300 shadow-[0_0_20px_rgba(34,211,238,0.3)] hover:shadow-[0_0_30px_rgba(34,211,238,0.5)] transition-all"
-            >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v7M7 9l-3-3M7 9l3-3M2 12h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              Download Master
-            </a>
-          </div>
-        </header>
-
-        {/* Top Stats Bar */}
-        <div className="flex flex-wrap gap-4 mb-8">
-          {[
-            { label: "Original LUFS", val: intLufs },
-            { label: "Target LUFS", val: liveTargetLufs ?? tgtLufs },
-            { label: "Resolution", val: "24-bit" },
-            { label: "Download", val: "FLAC" }
-          ].map((s, i) => (
-            <div key={i} className="flex-1 min-w-[140px] p-5 border border-cyan-400/10 rounded-2xl bg-[#09090b]/60 backdrop-blur-md shadow-[0_0_0_1px_rgba(34,211,238,0.02),0_8px_20px_rgba(0,0,0,0.4)] text-center transition-colors hover:border-cyan-400/30">
-              <div className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br from-cyan-400 to-lime-400 font-mono tracking-tight">{s.val}</div>
-              <div className="text-[9px] uppercase tracking-[0.15em] text-cyan-200/40 mt-1">{s.label}</div>
-            </div>
+        <div className={s.wave} aria-hidden="true">
+          {bars.map((amp, i) => (
+            <span
+              key={i}
+              className={s.bar}
+              data-played={frac > i / bars.length || undefined}
+              style={{ height: `${Math.max(4, amp * 100)}%` }}
+            />
           ))}
+          {hasDur && <span className={s.playhead} style={{ left: `${frac * 100}%` }} />}
         </div>
 
-        {/* Master Playback Area */}
-        <div className="relative mb-8 rounded-3xl border border-cyan-400/15 bg-[#09090b]/80 backdrop-blur-xl shadow-[0_0_0_1px_rgba(34,211,238,0.05),0_32px_60px_rgba(0,0,0,0.5)] overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-b from-cyan-400/[0.02] to-transparent pointer-events-none" />
-          
-          <div className="p-6 md:p-8">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-sm font-bold uppercase tracking-[0.15em] text-cyan-400">Master Playback</h2>
-              
-              {/* Compare Toggle inside playback area */}
-              {tierCfg.canPlaySimulations ? (
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-cyan-200/50">Compare</span>
-                  <button
-                    type="button"
-                    onClick={onToggleComparison}
-                    className={`relative w-12 h-6 rounded-full transition-colors border ${showComparison ? 'bg-cyan-400/20 border-cyan-400/50' : 'bg-white/5 border-white/10'}`}
-                  >
-                    <span className={`absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-cyan-400 transition-transform ${showComparison ? 'translate-x-7 shadow-[0_0_10px_#22d3ee]' : 'translate-x-1 bg-white/40'}`} />
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 opacity-50 cursor-not-allowed">
-                  <span className="text-xs font-bold uppercase tracking-wider text-white/30">Compare</span>
-                  <span className="px-2 py-0.5 rounded border border-lime-400/30 text-[8px] font-bold text-lime-400 uppercase tracking-widest bg-lime-400/10">EA Only</span>
-                </div>
-              )}
-            </div>
-
-            {/* Waveform Visualization */}
-            <div className="relative h-32 flex items-end gap-[3px] mb-6">
-              {(masterBars.length > 0 ? masterBars : Array.from({ length: 100 }, () => 0.25)).map((amp, i) => {
-                const hue = 185 - (i / 100) * 40;
-                return (
-                  <div
-                    key={i}
-                    className="flex-1 rounded-full"
-                    style={{
-                      height: `${Math.max(4, amp * 100)}%`,
-                      background: `linear-gradient(180deg, hsla(${hue}, 90%, 65%, 1), hsla(${hue}, 90%, 65%, 0.2))`,
-                      boxShadow: isPlaying ? `0 0 10px hsla(${hue}, 90%, 65%, 0.4)` : "none",
-                      opacity: (currentTime / (Number.isFinite(duration) && duration > 0 ? duration : 1)) > (i / 100) ? 1 : 0.4
-                    }}
-                  />
-                );
-              })}
-              {/* Playhead */}
-              {Number.isFinite(duration) && duration > 0 && (
-                <div
-                  className="absolute top-0 bottom-0 w-px bg-white shadow-[0_0_15px_#fff] z-10"
-                  style={{ left: `${Math.min(100, Math.max(0, (currentTime / duration) * 100))}%` }}
-                />
-              )}
-            </div>
-
-            {/* Controls */}
-            <div className="flex items-center gap-4">
-              <button
-                type="button"
-                onClick={onTogglePlay}
-                className="flex items-center justify-center w-14 h-14 rounded-2xl border-2 border-cyan-400 bg-cyan-400/10 text-cyan-400 hover:bg-cyan-400/20 hover:scale-105 transition-all shadow-[0_0_20px_rgba(34,211,238,0.2)]"
-              >
-                {isPlaying ? (
-                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="3" y="2" width="4" height="14" rx="1" fill="currentColor"/><rect x="11" y="2" width="4" height="14" rx="1" fill="currentColor"/></svg>
-                ) : (
-                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 2.5L15 9 4 15.5v-13z" fill="currentColor"/></svg>
-                )}
-              </button>
-              
-              <span className="font-mono text-sm text-cyan-400 w-12">{fmtTime(currentTime)}</span>
-              
-              <div className="relative flex-1 h-2 bg-white/5 rounded-full cursor-pointer" onClick={onSeek}>
-                <div
-                  className="absolute top-0 left-0 h-full rounded-full bg-gradient-to-r from-cyan-400 to-lime-400"
-                  style={{ width: `${Number.isFinite(duration) && duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0}%` }}
-                />
-              </div>
-              
-              <span className="font-mono text-sm text-cyan-200/40 w-12 text-right">{fmtTime(duration)}</span>
-            </div>
-            <audio
-              ref={masterAudioRef}
-              src={urls.out}
-              className="hidden"
-              preload="metadata"
-              onEnded={onAudioEnded}
-              onError={onAudioError}
-              onTimeUpdate={onAudioTimeUpdate}
-              onLoadedMetadata={onAudioLoadedMetadata}
-            />
-          </div>
-        </div>
-
-        {/* DSP Control Panel (live preview editing) */}
-        {controlPanel && <div className="relative mb-8">{controlPanel}</div>}
-
-        {/* Compare Section */}
-        {showComparison && (
-          <div className="mb-8 p-6 md:p-8 rounded-3xl border border-pink-400/20 bg-[#09090b]/80 backdrop-blur-xl shadow-[0_0_0_1px_rgba(244,114,182,0.05),0_32px_60px_rgba(0,0,0,0.5)]">
-            <h2 className="text-sm font-bold uppercase tracking-[0.15em] text-pink-400 mb-6">A/B Comparison</h2>
-            <div className="grid md:grid-cols-2 gap-8">
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-2 h-2 rounded-full bg-white/30" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-white/50">Original</span>
-                </div>
-                <div className="p-4 rounded-xl border border-white/5 bg-black/50">
-                  <canvas ref={beforeRef} width={800} height={60} className="w-full h-[60px] opacity-60" />
-                  <audio className="w-full mt-4 h-8" controls preload="none" src={urls.in} />
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">Mastered</span>
-                </div>
-                <div className="p-4 rounded-xl border border-cyan-400/20 bg-cyan-400/5 shadow-[inset_0_0_20px_rgba(34,211,238,0.05)]">
-                  <canvas 
-                    ref={(el) => { if (el && urls) { if (drawPeaks && waveformPeaks && waveformPeaks.length > 0) drawPeaks(el, waveformPeaks, "neon"); else void drawWaveform(el, urls.out, "neon"); } }} 
-                    width={800} height={60} className="w-full h-[60px]" 
-                  />
-                  <audio className="w-full mt-4 h-8" controls preload="none" src={urls.out} />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Lower Grid (Analysis & Export) */}
-        <div className="grid lg:grid-cols-3 gap-8">
-          
-          {/* Analysis Report */}
-          <div className="lg:col-span-2 rounded-3xl border border-white/5 bg-[#09090b]/60 backdrop-blur-md p-6 md:p-8">
-            <h2 className="text-sm font-bold uppercase tracking-[0.15em] text-white/50 mb-6">AI Analysis Report</h2>
-            <div className="grid sm:grid-cols-2 gap-4">
-              {ANALYSIS_CARDS.map(({ key, label, icon, color, featured }) => {
-                const value = (data.report as Record<string, unknown>)[key] as string | undefined;
-                if (!value) return null;
-                const neonColor = featured ? "#a3e635" : (color === "#a78bfa" ? "#f472b6" : "#22d3ee");
-                
-                return (
-                  <div key={key} className={`p-5 rounded-2xl border ${featured ? 'border-lime-400/30 bg-lime-400/5 sm:col-span-2' : 'border-white/5 bg-black/40'}`}>
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-8 h-8 rounded-lg flex items-center justify-center border" style={{ borderColor: `${neonColor}40`, backgroundColor: `${neonColor}10` }}>
-                        <AnalysisIcon type={icon} color={neonColor} />
-                      </div>
-                      <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: neonColor }}>{label}</span>
-                    </div>
-                    <p className="text-sm text-cyan-100/60 leading-relaxed">{value}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Right Column (DSP & Export) */}
-          <div className="flex flex-col gap-8">
-            {/* DSP Intent */}
-            <div className="rounded-3xl border border-white/5 bg-[#09090b]/60 backdrop-blur-md p-6">
-              <h2 className="text-sm font-bold uppercase tracking-[0.15em] text-white/50 mb-6">DSP Intent</h2>
-              <NeonIntensityBars intent={data.safe_intent} />
-            </div>
-
-            <CloudMasterStatus jobId={jobId} master={data.master} />
-
-            {/* Export Files */}
-            {data.exports.length > 0 && (
-              <div className="rounded-3xl border border-white/5 bg-[#09090b]/60 backdrop-blur-md p-6">
-                <h2 className="text-sm font-bold uppercase tracking-[0.15em] text-white/50 mb-6">Exports</h2>
-                <div className="flex flex-col gap-3">
-                  {data.exports.map((e, idx) => (
-                    <a
-                      key={idx}
-                      href={apiUrl(e.download_url)}
-                      download
-                      className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-white/5 hover:border-cyan-400/40 hover:bg-cyan-400/5 transition-all group"
-                    >
-                      <div>
-                        <p className="text-xs text-white/40 mb-1">{e.profile}</p>
-                        <p className="text-sm font-bold text-white group-hover:text-cyan-400 transition-colors">{e.format.toUpperCase()}</p>
-                      </div>
-                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className="text-white/20 group-hover:text-cyan-400 transition-colors">
-                        <path d="M10 4v10M6 10l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </a>
-                  ))}
-                </div>
-              </div>
+        <div className={s.transport}>
+          <button type="button" onClick={onTogglePlay} className={s.play} aria-label={isPlaying ? "Pause" : "Play"}>
+            {isPlaying ? (
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><rect x="3" y="2" width="4" height="14" fill="currentColor"/><rect x="11" y="2" width="4" height="14" fill="currentColor"/></svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M4 2.5L15 9 4 15.5v-13z" fill="currentColor"/></svg>
             )}
+          </button>
+          <span className={`${s.time} ${s.mono}`}>{fmtTime(currentTime)}</span>
+          <div className={s.seek} onClick={onSeek} role="presentation">
+            <div className={s.seekFill} style={{ width: `${frac * 100}%` }} />
           </div>
+          <span className={`${s.time} ${s.mono} ${s.muted}`} style={{ textAlign: "right" }}>{fmtTime(duration)}</span>
         </div>
+        <audio
+          ref={masterAudioRef}
+          src={urls.out}
+          className="hidden"
+          preload="metadata"
+          onEnded={onAudioEnded}
+          onError={onAudioError}
+          onTimeUpdate={onAudioTimeUpdate}
+          onLoadedMetadata={onAudioLoadedMetadata}
+        />
+      </section>
 
-        {/* Prompt Tab — ROLLOUT and ADMIN only */}
-        {promptTab?.visible && (
-          <div className="mt-8 rounded-3xl border border-violet-400/20 bg-[#09090b]/60 backdrop-blur-md p-6 md:p-8">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center border border-violet-400/30 bg-violet-400/10">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M2 4h12M2 8h8M2 12h5" stroke="#a78bfa" strokeWidth="1.5" strokeLinecap="round"/>
-                </svg>
-              </div>
-              <h2 className="text-sm font-bold uppercase tracking-[0.15em] text-violet-400">Prompt Remaster</h2>
-              <span className="px-2 py-0.5 rounded border border-violet-400/30 text-[8px] font-bold text-violet-400 uppercase tracking-widest bg-violet-400/10">AI</span>
+      {controlPanel && <div style={{ marginTop: "2rem" }}>{controlPanel}</div>}
+
+      {showComparison && (
+        <section className={s.block} aria-labelledby="ab-title">
+          <h2 id="ab-title" className={s.h2} style={{ marginBottom: "1.25rem" }}>Original and master</h2>
+          <div className={s.ab}>
+            <div className={s.abSide}>
+              <h3 className={s.h3}>Original</h3>
+              <canvas ref={beforeRef} width={800} height={60} style={{ opacity: 0.7 }} />
+              <audio controls preload="none" src={urls.in} />
             </div>
-            <p className="text-xs text-white/40 mb-5">
-              Describe how you&apos;d like the mastering changed. A new master will be generated from your original audio.
-            </p>
-            <textarea
-              value={promptTab.prompt}
-              onChange={(e) => promptTab.onPromptChange(e.target.value)}
-              disabled={promptTab.loading}
-              placeholder="e.g. Make it warmer and more punchy, boost the low-end slightly, widen the stereo field…"
-              rows={4}
-              className="w-full resize-none rounded-xl border border-white/10 bg-black/50 px-4 py-3 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:border-violet-400/50 focus:ring-1 focus:ring-violet-400/20 disabled:opacity-50 transition-colors"
-            />
-            {promptTab.error && (
-              <p className="mt-2 text-xs text-rose-400">{promptTab.error}</p>
-            )}
-            <div className="mt-4 flex justify-end">
-              <button
-                type="button"
-                onClick={promptTab.onSubmit}
-                disabled={promptTab.loading || !promptTab.prompt.trim()}
-                className="flex items-center gap-2 px-6 py-3 text-sm font-bold text-[#09090b] bg-violet-400 rounded-xl hover:bg-violet-300 shadow-[0_0_20px_rgba(167,139,250,0.3)] hover:shadow-[0_0_30px_rgba(167,139,250,0.5)] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              >
-                {promptTab.loading ? (
-                  <>
-                    <div className="h-4 w-4 animate-spin rounded-full border border-[#09090b]/30 border-t-[#09090b]" />
-                    Starting…
-                  </>
-                ) : (
-                  <>
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                      <path d="M7 1.5l1.4 4.3H13l-3.7 2.7 1.4 4.3L7 10.2l-3.7 2.6 1.4-4.3L1 5.8h4.6z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/>
+            <div className={s.abSide}>
+              <h3 className={s.h3}>Master</h3>
+              <canvas
+                ref={(el) => { if (el && urls) { if (drawPeaks && waveformPeaks && waveformPeaks.length > 0) drawPeaks(el, waveformPeaks, "neon"); else void drawWaveform(el, urls.out, "neon"); } }}
+                width={800} height={60}
+              />
+              <audio controls preload="none" src={urls.out} />
+            </div>
+          </div>
+        </section>
+      )}
+
+      <div className={s.lower}>
+        <section className={s.block} aria-labelledby="report-title">
+          <h2 id="report-title" className={s.h2} style={{ marginBottom: "1.25rem" }}>What Kord heard and did</h2>
+          <div className={s.report}>
+            {[...ANALYSIS_CARDS].sort((a, b) => Number(!!b.featured) - Number(!!a.featured)).map(({ key, label, featured }) => {
+              const value = report[key] as string | undefined;
+              if (!value) return null;
+              return (
+                <section key={key} className={featured ? s.verdict : undefined}>
+                  <h3 className={s.h3}>{label}</h3>
+                  <p>{value}</p>
+                </section>
+              );
+            })}
+          </div>
+        </section>
+
+        <div className={s.side}>
+          <section className={s.block} aria-labelledby="intent-title">
+            <h2 id="intent-title" className={s.h2} style={{ marginBottom: "1.25rem" }}>Processing character</h2>
+            <IntentMeters intent={data.safe_intent} />
+          </section>
+
+          <CloudMasterStatus jobId={jobId} master={data.master} />
+
+          {data.exports.length > 0 && (
+            <section className={s.block} aria-labelledby="exports-title">
+              <h2 id="exports-title" className={s.h2} style={{ marginBottom: "0.75rem" }}>Files for each platform</h2>
+              <div className={s.exports}>
+                {data.exports.map((e, idx) => (
+                  <a key={idx} href={apiUrl(e.download_url)} download className={s.exportRow}>
+                    <span>
+                      <strong>{e.profile}</strong> <span className={`${s.mono} ${s.muted}`}>{e.format.toUpperCase()}</span>
+                    </span>
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                      <path d="M10 4v10M6 10l4 4 4-4M4 17h12" stroke="currentColor" strokeWidth="2" strokeLinecap="square" />
                     </svg>
-                    Remaster with AI
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        )}
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      </div>
 
-      </main>
-    </div>
+      {/* Prompt remaster: ROLLOUT and ADMIN only */}
+      {promptTab?.visible && (
+        <section className={s.block} aria-labelledby="prompt-title">
+          <h2 id="prompt-title" className={s.h2}>Ask for a different master</h2>
+          <p className={s.muted} style={{ margin: "0.6rem 0 1.1rem" }}>
+            Describe how you&apos;d like the mastering changed. A new master will be made from your original audio.
+          </p>
+          <label htmlFor="prompt-remaster" className="sr-only">How should the master change?</label>
+          <textarea
+            id="prompt-remaster"
+            value={promptTab.prompt}
+            onChange={(e) => promptTab.onPromptChange(e.target.value)}
+            disabled={promptTab.loading}
+            placeholder="For example: warmer and punchier, a little more low end, a wider stereo image…"
+            rows={4}
+            className={s.textarea}
+          />
+          {promptTab.error && <p className={s.error} role="alert">{promptTab.error}</p>}
+          <div className={s.right}>
+            <button
+              type="button"
+              onClick={promptTab.onSubmit}
+              disabled={promptTab.loading || !promptTab.prompt.trim()}
+              className={s.btn}
+            >
+              {promptTab.loading ? (
+                <>
+                  <span className={s.spinner} aria-hidden="true" />
+                  Starting…
+                </>
+              ) : (
+                "Make a new master"
+              )}
+            </button>
+          </div>
+        </section>
+      )}
+    </main>
   );
 }

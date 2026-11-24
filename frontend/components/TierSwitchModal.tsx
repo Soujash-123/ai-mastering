@@ -1,4 +1,8 @@
 import { getTierConfig, type UserTier } from "@/lib/tier";
+import { alpha } from "@/lib/colors";
+
+// Kord palette for the tier marks (the colours in lib/tier.ts are the old neon ones).
+const tierTone = (t: UserTier) => (t === "early_access" ? "rgb(var(--k-accent))" : "rgb(var(--k-paper))");
 
 /** Pill badge showing current tier with a switch trigger */
 export function TierBadge({ tier, onSwitch }: { tier: UserTier; onSwitch: () => void }) {
@@ -9,16 +13,16 @@ export function TierBadge({ tier, onSwitch }: { tier: UserTier; onSwitch: () => 
       type="button"
       onClick={onSwitch}
       title="Click to switch tier"
-      className="group flex items-center gap-2 rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-widest transition-all hover:scale-105"
+      className="group flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-bold transition-all hover:scale-105"
       style={{
-        borderColor: isEA ? "rgba(110,231,255,0.35)" : "rgba(167,139,250,0.35)",
-        background: isEA ? "rgba(110,231,255,0.06)" : "rgba(167,139,250,0.06)",
-        color: isEA ? "rgba(110,231,255,0.85)" : "rgba(167,139,250,0.85)",
+        borderColor: isEA ? "rgb(var(--k-accent) / 0.35)" : "rgb(var(--k-alert) / 0.35)",
+        background: isEA ? "rgb(var(--k-accent) / 0.06)" : "rgb(var(--k-alert) / 0.06)",
+        color: isEA ? "rgb(var(--k-accent) / 0.85)" : "rgb(var(--k-alert) / 0.85)",
       }}
     >
       <span
         className="h-1.5 w-1.5 rounded-full"
-        style={{ background: cfg.color, boxShadow: `0 0 5px ${cfg.color}` }}
+        style={{ background: tierTone(tier) }}
       />
       {cfg.badge}
       <svg width="9" height="9" viewBox="0 0 9 9" fill="none" className="opacity-50 group-hover:opacity-100">
@@ -43,14 +47,13 @@ export function TierSwitchModal({
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center px-4"
-      style={{ background: "rgba(5,7,12,0.85)", backdropFilter: "blur(8px)" }}
+      style={{ background: "rgb(var(--k-ink) / 0.85)", backdropFilter: "blur(8px)" }}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm rounded-3xl border border-white/[0.09] bg-[#07090f] p-6 shadow-2xl"
+        className="w-full max-w-sm rounded-3xl border border-white/[0.09] bg-ink-800 p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="mb-1 text-[9px] font-bold uppercase tracking-[0.3em] text-accent/60">Account Tier</p>
         <h2 className="mb-5 text-xl font-extrabold text-white">Select your tier</h2>
         <div className="space-y-3">
           {tiers.map((t) => {
@@ -65,34 +68,34 @@ export function TierSwitchModal({
                 className="group w-full rounded-2xl border p-4 text-left transition-all"
                 style={{
                   borderColor: active
-                    ? `${cfg.color}55`
-                    : "rgba(255,255,255,0.07)",
+                    ? `${alpha(tierTone(t), 0.33)}`
+                    : "rgb(var(--k-paper) / 0.07)",
                   background: active
-                    ? `${cfg.color}0d`
-                    : "rgba(255,255,255,0.02)",
+                    ? `${alpha(tierTone(t), 0.05)}`
+                    : "rgb(var(--k-paper) / 0.02)",
                 }}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <span
-                      className="flex h-7 w-7 items-center justify-center rounded-lg text-[10px] font-bold"
+                      className="flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold"
                       style={{
-                        background: `${cfg.color}18`,
-                        border: `1px solid ${cfg.color}35`,
-                        color: cfg.color,
+                        background: `${alpha(tierTone(t), 0.09)}`,
+                        border: `1px solid ${alpha(tierTone(t), 0.21)}`,
+                        color: tierTone(t),
                       }}
                     >
                       {isEA ? "EA" : "R"}
                     </span>
                     <div>
                       <p className="text-xs font-bold text-white">{cfg.label}</p>
-                      <p className="text-[9px] text-mist-200/40">Upload up to {cfg.maxDurationLabel}</p>
+                      <p className="text-[11px] text-mist-200/40">Upload up to {cfg.maxDurationLabel}</p>
                     </div>
                   </div>
                   {active && (
                     <span
-                      className="rounded-full px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider"
-                      style={{ background: `${cfg.color}20`, color: cfg.color }}
+                      className="rounded-full px-2 py-0.5 text-[11px] font-bold "
+                      style={{ background: `${alpha(tierTone(t), 0.13)}`, color: tierTone(t) }}
                     >
                       Active
                     </span>
@@ -105,11 +108,11 @@ export function TierSwitchModal({
                     ...(cfg.canPlaySimulations ? ["Streaming & Device Simulations"] : []),
                     "Play & download mastered audio",
                   ].map((feat) => (
-                    <li key={feat} className="flex items-center gap-1.5 text-[10px] text-mist-200/55">
+                    <li key={feat} className="flex items-center gap-1.5 text-xs text-mist-200/55">
                       <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                         <path
                           d="M2 5l2.5 2.5 3.5-4"
-                          stroke={cfg.color}
+                          stroke={tierTone(t)}
                           strokeWidth="1.3"
                           strokeLinecap="round"
                           strokeLinejoin="round"

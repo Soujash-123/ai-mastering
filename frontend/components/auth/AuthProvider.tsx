@@ -59,18 +59,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       router.replace("/login");
     }
     if (user && PUBLIC_PATHS.has(pathname)) {
-      router.replace("/");
+      router.replace("/studio");
     }
   }, [loading, user, pathname, router]);
 
   const login = useCallback(async (email: string, password: string) => {
     await apiLogin(email, password);
-    redirectAfterAuth("/");
+    redirectAfterAuth("/studio");
   }, []);
 
   const register = useCallback(async (fullName: string, email: string, password: string) => {
     await apiRegister(fullName, email, password);
-    redirectAfterAuth("/");
+    redirectAfterAuth("/studio");
   }, []);
 
   const logout = useCallback(async () => {

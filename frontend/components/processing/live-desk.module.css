@@ -1,0 +1,199 @@
+.wrap {
+  margin-top: 2rem;
+  border: 2px solid rgb(var(--k-paper) / 0.85);
+  background: rgb(var(--k-ink-2));
+}
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
+  padding: 1rem 1.1rem 0.9rem;
+  border-bottom: 1px solid rgb(var(--k-paper) / 0.18);
+}
+.h2 {
+  font-size: clamp(1.3rem, 2.6vw, 1.7rem);
+  font-weight: 800;
+  font-variation-settings: "wdth" 85;
+  line-height: 1.05;
+}
+.now {
+  font-size: 1rem;
+  color: rgb(var(--k-paper-soft));
+}
+.now strong {
+  color: rgb(var(--k-accent));
+}
+.mono {
+  font-family: var(--f-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Song timeline */
+.timeline {
+  padding: 1rem 1.1rem 0.75rem;
+  border-bottom: 1px solid rgb(var(--k-paper) / 0.18);
+}
+.wave {
+  position: relative;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.bar {
+  flex: 1;
+  background: rgb(var(--k-paper) / 0.3);
+  transition: background-color 400ms ease-out;
+}
+.wave[data-active] .bar {
+  background: rgb(var(--k-accent));
+}
+.wave[data-done] .bar {
+  background: rgb(var(--k-paper) / 0.7);
+}
+.sections {
+  position: relative;
+  height: 4.25rem;
+  margin-top: 0.4rem;
+}
+.section {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 0 4px 2px;
+  border-left: 1px solid rgb(var(--k-paper) / 0.35);
+  overflow: hidden;
+}
+.amount {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  bottom: 1.35rem;
+  background: rgb(var(--k-accent) / 0.85);
+  transition: height 400ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.amountValue {
+  position: absolute;
+  left: 5px;
+  top: 0;
+  font-size: 0.78rem;
+  color: rgb(var(--k-paper));
+  white-space: nowrap;
+}
+.sectionLabel {
+  position: relative;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: rgb(var(--k-paper-soft));
+  white-space: nowrap;
+  text-transform: capitalize;
+}
+.axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.3rem;
+  font-size: 0.78rem;
+  color: rgb(var(--k-paper-soft));
+}
+.caption {
+  margin-top: 0.5rem;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: rgb(var(--k-paper-soft));
+}
+.caption strong {
+  color: rgb(var(--k-paper));
+}
+
+/* Module rack */
+.rack {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (min-width: 760px) {
+  .rack {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1100px) {
+  .rack {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+.module {
+  padding: 0.75rem 0.85rem 0.85rem;
+  border-right: 1px solid rgb(var(--k-paper) / 0.12);
+  border-bottom: 1px solid rgb(var(--k-paper) / 0.12);
+  min-height: 6.5rem;
+  transition: background-color 300ms ease-out, color 300ms ease-out;
+}
+.module[data-state="waiting"] {
+  color: rgb(var(--k-paper-soft));
+}
+.module[data-state="active"] {
+  background: rgb(var(--k-accent));
+  color: rgb(var(--k-ink));
+}
+.moduleHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.moduleName {
+  font-weight: 800;
+  font-size: 1rem;
+}
+.moduleState {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.values {
+  margin-top: 0.45rem;
+  display: grid;
+  gap: 0.15rem;
+  font-size: 0.82rem;
+}
+.values div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.values dt {
+  opacity: 0.8;
+}
+.module[data-state="active"] .values dt {
+  opacity: 0.85;
+}
+.desk {
+  padding: 0.85rem 1.1rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: rgb(var(--k-paper-soft));
+}
+.desk strong {
+  color: rgb(var(--k-paper));
+}
+.chip {
+  display: inline-block;
+  margin: 0.15rem 0.35rem 0.15rem 0;
+  padding: 0.05rem 0.45rem;
+  border: 1px solid rgb(var(--k-paper) / 0.35);
+  color: rgb(var(--k-paper));
+}
+.chip[data-yours] {
+  border-color: rgb(var(--k-accent));
+  color: rgb(var(--k-accent));
+}
+@media (prefers-reduced-motion: reduce) {
+  .bar,
+  .module,
+  .amount {
+    transition: none;
+  }
+}

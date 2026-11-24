@@ -145,6 +145,9 @@ export interface ProcessingProps {
   copied: boolean;
   onCopyId: () => void;
   onBack: () => void;
+  /** Live view (processing page): backend pipeline step and the one-off song/plan snapshot. */
+  stage?: string;
+  liveView?: import("./processing/LiveDesk").LiveView | null;
 }
 
 export function ProcessingAurora({ jobId, status, progress, message, elapsed, copied, onCopyId, onBack }: ProcessingProps) {

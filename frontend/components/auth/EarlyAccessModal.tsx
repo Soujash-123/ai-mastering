@@ -90,19 +90,19 @@ export function EarlyAccessModal({ open, onClose, defaultEmail = "", defaultName
             </p>
             <form onSubmit={handleSubmit} className="mt-5 space-y-4">
               <label className="block space-y-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-mist-200/40">Full Name</span>
+                <span className="text-xs font-semibold text-mist-200/40">Full Name</span>
                 <input required value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl border border-white/10 bg-ink-950 px-3 py-2.5 text-sm text-white outline-none focus:border-accent/40" />
               </label>
               <label className="block space-y-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-mist-200/40">Email Address</span>
+                <span className="text-xs font-semibold text-mist-200/40">Email Address</span>
                 <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-xl border border-white/10 bg-ink-950 px-3 py-2.5 text-sm text-white outline-none focus:border-accent/40" />
               </label>
               <label className="block space-y-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-mist-200/40">Phone Number</span>
+                <span className="text-xs font-semibold text-mist-200/40">Phone Number</span>
                 <input required type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-xl border border-white/10 bg-ink-950 px-3 py-2.5 text-sm text-white outline-none focus:border-accent/40" />
               </label>
               <label className="block space-y-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-mist-200/40">Why would you like Early Access?</span>
+                <span className="text-xs font-semibold text-mist-200/40">Why would you like Early Access?</span>
                 <textarea required minLength={20} rows={4} value={reason} onChange={(e) => setReason(e.target.value)} className="w-full resize-none rounded-xl border border-white/10 bg-ink-950 px-3 py-2.5 text-sm text-white outline-none focus:border-accent/40" />
               </label>
               {error && <p className="text-sm text-rose-300">{error}</p>}

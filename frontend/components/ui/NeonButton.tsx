@@ -20,7 +20,7 @@ export function NeonButton({
   return (
     <button
       type={type}
-      className={`inline-flex items-center justify-center gap-2 rounded-full border border-neon-purple bg-neon-purple text-white shadow-[0_0_30px_rgba(168,85,247,0.35)] transition hover:bg-neon-purple/90 ${sizeClasses[size]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-full border border-neon-purple bg-neon-purple text-white transition hover:bg-neon-purple/90 ${sizeClasses[size]} ${className}`}
     >
       {children}
     </button>

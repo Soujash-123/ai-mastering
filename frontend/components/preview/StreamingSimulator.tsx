@@ -41,22 +41,22 @@ export function StreamingSimulator({ previews, notes = [] }: Props) {
   }, {});
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-violet/20 bg-gradient-to-br from-violet/[0.06] via-white/[0.02] to-accent/[0.04]">
+    <div className="overflow-hidden rounded-2xl border border-violet/20 bg-violet/[0.06]">
       <div className="border-b border-white/[0.06] px-5 py-4 sm:px-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-[9px] font-bold uppercase tracking-[0.24em] text-violet/80">
+            <p className="text-[11px] font-bold text-violet/80">
               Streaming Simulator
             </p>
             <h2 className="mt-1 text-lg font-bold text-white sm:text-xl">
               Hear how your master translates
             </h2>
-            <p className="mt-1 max-w-xl text-[11px] leading-relaxed text-mist-200/50">
+            <p className="mt-1 max-w-xl text-[13px] leading-relaxed text-mist-200/50">
               Preview-only simulations — listen here to compare platform loudness and device playback.
               These are not downloadable exports.
             </p>
           </div>
-          <span className="rounded-full border border-violet/30 bg-violet/10 px-3 py-1 text-[9px] font-semibold uppercase tracking-wider text-violet/90">
+          <span className="rounded-full border border-violet/30 bg-violet/10 px-3 py-1 text-[11px] font-semibold text-violet/90">
             Preview only
           </span>
         </div>
@@ -66,7 +66,7 @@ export function StreamingSimulator({ previews, notes = [] }: Props) {
         <div className="border-b border-white/[0.06] p-4 lg:col-span-2 lg:border-b-0 lg:border-r">
           {Object.entries(grouped).map(([category, items]) => (
             <div key={category} className="mb-4 last:mb-0">
-              <p className="mb-2 px-1 text-[8px] font-bold uppercase tracking-[0.2em] text-mist-200/30">
+              <p className="mb-2 px-1 text-[11px] font-bold text-mist-200/30">
                 {CATEGORY_LABELS[category] ?? category}
               </p>
               <div className="space-y-1.5">
@@ -80,7 +80,7 @@ export function StreamingSimulator({ previews, notes = [] }: Props) {
                       className={[
                         "flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition",
                         selected
-                          ? "border-violet/40 bg-violet/15 shadow-[0_0_20px_rgba(167,139,250,0.12)]"
+                          ? "border-violet/40 bg-violet/15"
                           : "border-white/[0.06] bg-white/[0.02] hover:border-white/15 hover:bg-white/[0.04]",
                       ].join(" ")}
                     >
@@ -98,7 +98,7 @@ export function StreamingSimulator({ previews, notes = [] }: Props) {
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-sm font-semibold text-white">{item.label}</span>
-                        <span className="block truncate text-[10px] text-mist-200/40">{item.description}</span>
+                        <span className="block truncate text-xs text-mist-200/40">{item.description}</span>
                       </span>
                     </button>
                   );
@@ -112,7 +112,7 @@ export function StreamingSimulator({ previews, notes = [] }: Props) {
           {active && (
             <>
               <div className="rounded-xl border border-white/[0.08] bg-ink-950/50 p-4">
-                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-accent/70">Now Playing</p>
+                <p className="text-[11px] font-bold text-accent/70">Now Playing</p>
                 <p className="mt-1 text-xl font-bold text-white">{active.label}</p>
                 <p className="mt-1 text-xs text-mist-200/55">{active.description}</p>
               </div>
@@ -127,7 +127,7 @@ export function StreamingSimulator({ previews, notes = [] }: Props) {
                   preload="metadata"
                   src={apiUrl(active.preview_url)}
                 />
-                <p className="mt-2 text-center text-[9px] text-mist-200/30">
+                <p className="mt-2 text-center text-[11px] text-mist-200/30">
                   Playback preview — right-click save is disabled in supported browsers
                 </p>
               </div>
@@ -137,7 +137,7 @@ export function StreamingSimulator({ previews, notes = [] }: Props) {
           {notes.length > 0 && (
             <ul className="space-y-1.5 rounded-xl border border-white/[0.05] bg-white/[0.02] px-4 py-3">
               {notes.map((note, i) => (
-                <li key={i} className="flex items-start gap-2 text-[10px] text-mist-200/45">
+                <li key={i} className="flex items-start gap-2 text-xs text-mist-200/45">
                   <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-violet/50" />
                   {note}
                 </li>

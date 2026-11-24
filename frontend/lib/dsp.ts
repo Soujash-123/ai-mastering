@@ -29,7 +29,7 @@ export const DSP_GROUPS: DSPGroup[] = [
   {
     id: "tonal",
     label: "Tonal Balance",
-    accent: "#22d3ee",
+    accent: "rgb(var(--k-accent))",
     params: [
       { key: "low_shelf_db", label: "Low Shelf", hint: "Warmth / body at 90 Hz", min: -3, max: 3, step: 0.1, fmt: db },
       { key: "mid_peak_db", label: "Mid Presence", hint: "Clarity at 2.5 kHz", min: -4, max: 4, step: 0.1, fmt: db },
@@ -40,7 +40,7 @@ export const DSP_GROUPS: DSPGroup[] = [
   {
     id: "dynamics",
     label: "Dynamics",
-    accent: "#a3e635",
+    accent: "rgb(var(--k-paper))",
     params: [
       { key: "low_ratio", label: "Low Ratio", hint: "Low-band compression", min: 1, max: 3, step: 0.05, fmt: ratio },
       { key: "mid_ratio", label: "Mid Ratio", hint: "Mid-band compression", min: 1, max: 4, step: 0.05, fmt: ratio },
@@ -54,7 +54,7 @@ export const DSP_GROUPS: DSPGroup[] = [
   {
     id: "color",
     label: "Color & Width",
-    accent: "#f472b6",
+    accent: "rgb(var(--k-alert-hi))",
     params: [
       { key: "saturation_amount", label: "Saturation", hint: "Harmonic coloring amount", min: 0, max: 0.45, step: 0.01, fmt: pct },
       { key: "exciter_amount", label: "Air Exciter", hint: "Psychoacoustic high shimmer", min: 0, max: 0.35, step: 0.01, fmt: pct },
@@ -69,7 +69,7 @@ export const DSP_GROUPS: DSPGroup[] = [
   {
     id: "loudness",
     label: "Loudness",
-    accent: "#a78bfa",
+    accent: "rgb(var(--k-ok))",
     params: [
       { key: "target_lufs", label: "Target Loudness", hint: "Integrated LUFS target", min: -18, max: -7, step: 0.5, fmt: lufs },
       { key: "true_peak_ceiling_db", label: "True Peak Ceiling", hint: "Maximum peak level", min: -3, max: -0.3, step: 0.1, fmt: tpceil },

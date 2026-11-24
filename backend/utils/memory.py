@@ -8,7 +8,7 @@ import sys
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Iterator
+from typing import Callable, Iterator
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,9 @@ class JobMemoryTracker:
     def __init__(self, job_id: str | None = None) -> None:
         self.job_id = job_id
         self.reports: list[StepMemoryReport] = []
+        # Optional listener told the name of each step as it starts (the
+        # processing page's live view uses it). Must be cheap and never raise.
+        self.on_step: Callable[[str], None] | None = None
 
     @contextmanager
     def step(self, name: str) -> Iterator[None]:
@@ -128,5 +131,10 @@ def memory_step(name: str) -> Iterator[None]:
     if tracker is None:
         yield
         return
+    if tracker.on_step is not None:
+        try:
+            tracker.on_step(name)
+        except Exception:  # a status label must never break a render
+            pass
     with tracker.step(name):
         yield

@@ -40,6 +40,12 @@ class JobRecord:
     style_family: str = "auto"
     source_format: Optional[str] = None
     source_lossy: bool = False
+    # Creative desk values (mastering/creative.py), EARLY_ACCESS/ADMIN only.
+    creative: Optional[dict[str, int]] = None
+    # Live view for the processing page: the pipeline step running now and a
+    # one-off snapshot (waveform, sections, DSP values). In memory only.
+    stage: str = ""
+    live_view: Optional[dict[str, Any]] = None
     # Background /finalize state. Persisted so a reload while a finalize is in
     # flight can resume polling; reset on disk-load (work does not survive restarts).
     finalizing: bool = False
@@ -312,6 +318,7 @@ def _record_to_dict(rec: JobRecord) -> dict:
         "user_id": rec.user_id,
         "user_role": rec.user_role,
         "style_family": rec.style_family,
+        "creative": rec.creative,
         "source_format": rec.source_format,
         "source_lossy": rec.source_lossy,
         "finalizing": rec.finalizing,
@@ -353,6 +360,7 @@ def _dict_to_record(d: dict) -> JobRecord:
         user_id=d.get("user_id"),
         user_role=d.get("user_role"),
         style_family=d.get("style_family") or "auto",
+        creative=d.get("creative"),
         source_format=d.get("source_format"),
         source_lossy=bool(d.get("source_lossy", False)),
         finalizing=bool(d.get("finalizing", False)),

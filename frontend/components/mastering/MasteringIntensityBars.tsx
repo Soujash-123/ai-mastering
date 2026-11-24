@@ -1,4 +1,5 @@
 "use client";
+import { alpha } from "@/lib/colors";
 
 function pickNum(v: unknown): number | null {
   if (typeof v === "number" && Number.isFinite(v)) return v;
@@ -14,29 +15,29 @@ const BAR_META = [
     label: "Warmth",
     desc: "Adds subtle warmth and body to the low-mids.",
     icon: "🔥",
-    from: "#f0b429",
-    to: "#ff8c42",
+    from: "rgb(var(--k-accent))",
+    to: "rgb(var(--k-alert-hi))",
   },
   {
     label: "Brightness",
     desc: "Brings clarity and air without harshness.",
     icon: "✨",
-    from: "#6ee7ff",
-    to: "#a78bfa",
+    from: "rgb(var(--k-accent))",
+    to: "rgb(var(--k-second))",
   },
   {
     label: "Punch Preservation",
     desc: "Maintains transient impact and groove.",
     icon: "⚡",
-    from: "#a78bfa",
-    to: "#6ee7ff",
+    from: "rgb(var(--k-second))",
+    to: "rgb(var(--k-accent))",
   },
   {
     label: "Stereo Width",
     desc: "Enhances image width and spatial depth.",
     icon: "↔",
-    from: "#6ee7ff",
-    to: "#a78bfa",
+    from: "rgb(var(--k-accent))",
+    to: "rgb(var(--k-second))",
   },
 ];
 
@@ -71,8 +72,8 @@ export function MasteringIntensityBars({ intent }: Props) {
               <div
                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs"
                 style={{
-                  background: `linear-gradient(135deg, ${meta.from}22, ${meta.to}18)`,
-                  border: `1px solid ${meta.from}28`,
+                  background: `linear-gradient(135deg, ${alpha(meta.from, 0.13)}, ${alpha(meta.to, 0.09)})`,
+                  border: `1px solid ${alpha(meta.from, 0.16)}`,
                 }}
               >
                 {meta.icon}
@@ -80,7 +81,7 @@ export function MasteringIntensityBars({ intent }: Props) {
               {/* Label + desc */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-[11px] font-semibold text-white">{meta.label}</p>
+                  <p className="text-[13px] font-semibold text-white">{meta.label}</p>
                   <span
                     className="shrink-0 font-mono text-sm font-bold"
                     style={{ color: meta.from }}
@@ -88,7 +89,7 @@ export function MasteringIntensityBars({ intent }: Props) {
                     {value.toFixed(1)}
                   </span>
                 </div>
-                <p className="mt-0.5 text-[10px] text-mist-200/42">{meta.desc}</p>
+                <p className="mt-0.5 text-xs text-mist-200/42">{meta.desc}</p>
                 {/* Bar */}
                 <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-white/[0.07]">
                   <div
@@ -106,7 +107,7 @@ export function MasteringIntensityBars({ intent }: Props) {
       })}
 
       {/* Perceptual scale note */}
-      <p className="mt-3 pt-3 border-t border-white/[0.05] text-[9px] text-mist-200/28 leading-relaxed">
+      <p className="mt-3 pt-3 border-t border-white/[0.05] text-[11px] text-mist-200/28 leading-relaxed">
         Perceptual Scale 0–10 &nbsp;•&nbsp; All adjustments are made transparently to maximize impact while preserving your mix.
       </p>
     </div>

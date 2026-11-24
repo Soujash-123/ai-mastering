@@ -3,6 +3,7 @@
 import { useCallback, useRef } from "react";
 import { fmtParam } from "@/lib/studio/dsp";
 import type { ParamSpec } from "@/lib/studio/types";
+import { alpha } from "@/lib/colors";
 
 const SWEEP = 270; // degrees
 const START = -135;
@@ -32,7 +33,7 @@ export type KnobProps = {
 };
 
 /** Rotary knob: vertical drag (Shift = fine), wheel, arrow keys, double-click resets. */
-export function Knob({ spec, value, onChange, onBegin, accent = "#22d3ee", size = 56, disabled, label }: KnobProps) {
+export function Knob({ spec, value, onChange, onBegin, accent = "rgb(var(--k-accent))", size = 56, disabled, label }: KnobProps) {
   const drag = useRef<{ y: number; v: number } | null>(null);
   const range = spec.max - spec.min;
   const norm = Math.min(1, Math.max(0, (value - spec.min) / range));
@@ -110,16 +111,16 @@ export function Knob({ spec, value, onChange, onBegin, accent = "#22d3ee", size 
         }}
       >
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-          <path d={arc(c, c, r, START, START + SWEEP)} stroke="rgba(255,255,255,0.08)" strokeWidth={4} fill="none" strokeLinecap="round" />
+          <path d={arc(c, c, r, START, START + SWEEP)} strokeWidth={4} fill="none" style={{ stroke: "rgb(var(--k-paper) / 0.08)" }} strokeLinecap="round" />
           {to - from > 0.5 && (
-            <path d={arc(c, c, r, from, to)} stroke={accent} strokeWidth={4} fill="none" strokeLinecap="round" style={{ filter: `drop-shadow(0 0 4px ${accent}66)` }} />
+            <path d={arc(c, c, r, from, to)} strokeWidth={4} fill="none" strokeLinecap="round" style={{ stroke: accent }} />
           )}
-          <circle cx={c} cy={c} r={r - 6} fill="#16161b" stroke="rgba(255,255,255,0.08)" />
-          <line x1={c} y1={c} x2={tip.x} y2={tip.y} stroke="#e6eaf5" strokeWidth={2.5} strokeLinecap="round" />
+          <circle cx={c} cy={c} r={r - 6} style={{ fill: "rgb(var(--k-ink-3))", stroke: "rgb(var(--k-paper) / 0.08)" }} />
+          <line x1={c} y1={c} x2={tip.x} y2={tip.y} style={{ stroke: "rgb(var(--k-paper))" }} strokeWidth={2.5} strokeLinecap="round" />
         </svg>
       </div>
-      <span className="text-[10px] font-semibold text-white/70 leading-none">{label ?? spec.label}</span>
-      <span className="text-[10px] tabular-nums leading-none" style={{ color: accent }}>
+      <span className="text-xs font-semibold text-white/70 leading-none">{label ?? spec.label}</span>
+      <span className="text-xs tabular-nums leading-none" style={{ color: accent }}>
         {fmtParam(value, spec.unit)}
       </span>
     </div>
