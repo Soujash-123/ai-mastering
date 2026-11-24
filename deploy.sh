@@ -124,8 +124,10 @@ install_keepalive_cron() {
 main() {
     log INFO "Starting deployment"
     validate_prerequisites
-    stop_existing_containers
+    # Build while the current version keeps serving: a failed build then leaves
+    # the site up instead of taking it down.
     build_images
+    stop_existing_containers
     start_services
     wait_for_services
     install_keepalive_cron || log WARNING "Could not install Appwrite keepalive cron"
