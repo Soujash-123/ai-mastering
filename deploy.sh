@@ -69,6 +69,33 @@ stop_existing_containers() {
     dc down --remove-orphans 2>&1 | tee -a "${DEPLOYMENT_LOG}"
 }
 
+# Files that were moved or deleted in git. The workflow copies the release over
+# this directory with tar, which never deletes, so old copies stay here. Next.js
+# fails on a stale page next to its moved copy ("two parallel pages that resolve
+# to the same path"). This runs from deploy.sh because the release does not sync
+# .github/ to production, so cleanup in deploy.yml never reaches the server.
+# When you move or delete a frontend page/component, add its old path here.
+RETIRED_PATHS=(
+    "frontend/app/page.tsx"
+    "frontend/app/login"
+    "frontend/app/signup"
+    "frontend/app/access-request"
+    "frontend/app/processing"
+    "frontend/app/result"
+    "frontend/app/studio"
+    "frontend/components/NeonWaveformCanvas.tsx"
+)
+
+remove_retired_files() {
+    local rel
+    for rel in "${RETIRED_PATHS[@]}"; do
+        if [ -e "${SCRIPT_DIR}/${rel}" ]; then
+            log INFO "Removing retired path ${rel}"
+            rm -rf -- "${SCRIPT_DIR:?}/${rel}"
+        fi
+    done
+}
+
 build_images() {
     local service
     for service in "${SERVICES[@]}"; do
@@ -124,6 +151,7 @@ install_keepalive_cron() {
 main() {
     log INFO "Starting deployment"
     validate_prerequisites
+    remove_retired_files
     # Build while the current version keeps serving: a failed build then leaves
     # the site up instead of taking it down.
     build_images
