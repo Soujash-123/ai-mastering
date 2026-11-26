@@ -10,9 +10,7 @@ services:
       - GPT_OSS_MASTERING_MODEL=${GPT_OSS_MASTERING_MODEL:-openai/gpt-oss-20b}
       - AI_MASTERING_DATA_DIR=${AI_MASTERING_DATA_DIR:-/app/backend/data}
       - DATABASE_URL=${DATABASE_URL:-sqlite:////app/backend/data/kord_auth.db}
-      # Required: no default, so a missing secret stops compose instead of
-      # silently signing tokens with a public value.
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-me-use-a-long-random-secret-in-production}
     expose:
       - "8000"
     ports:
