@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/marketing/LegalPage";
+import { APP_TITLE } from "@/lib/landing/content";
 
 export const dynamic = "force-static";
 export const metadata: Metadata = {
-  title: "Terms of use | Kord",
+  title: APP_TITLE,
   description: "Terms of use for Kord Studio, a Syntalix LLP product.",
   alternates: { canonical: "/terms" },
 };

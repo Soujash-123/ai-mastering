@@ -5,12 +5,12 @@ import { SiteFooter, SiteHeader } from "@/components/marketing/SiteChrome";
 import { StudioCta } from "@/components/marketing/StudioCta";
 import s from "@/components/marketing/landing.module.css";
 import { availableAudioPairs } from "@/lib/landing/audio-pairs";
-import { SITE_URL, STYLE_FAMILIES } from "@/lib/landing/content";
+import { APP_TITLE, SITE_URL, STYLE_FAMILIES } from "@/lib/landing/content";
 import { FAQS } from "@/lib/landing/faq";
 
 export const dynamic = "force-static";
 
-const TITLE = "Kord: release-ready AI mastering for Indian music";
+const TITLE = APP_TITLE;
 // Keep under 160 characters (search snippets cut off after that).
 const DESCRIPTION =
   "Release-ready AI mastering for Indian music: classical, devotional, film, dance and indie. Upload a WAV or phone recording for Spotify and Apple Music.";

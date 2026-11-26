@@ -78,6 +78,9 @@ export const TRUE_PEAK_DBTP = -1;
 
 export const ACCESS_HREF = "/access-request";
 
+/** Browser-tab title for every page of the app (also used for social cards). */
+export const APP_TITLE = "KORD Studio:AI-Mastering Tool";
+
 export const SITE_URL = "https://kordstudio.syntalixconsultancy.com";
 
 // Set NEXT_PUBLIC_CONTACT_EMAIL at build time (inlined by Next.js). The footer

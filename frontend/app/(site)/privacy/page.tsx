@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/marketing/LegalPage";
+import { APP_TITLE } from "@/lib/landing/content";
 
 export const dynamic = "force-static";
 export const metadata: Metadata = {
-  title: "Privacy policy | Kord",
+  title: APP_TITLE,
   description: "How Kord Studio, a Syntalix LLP product, handles your audio and personal data.",
   alternates: { canonical: "/privacy" },
 };

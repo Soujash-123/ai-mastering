@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { APP_TITLE } from "@/lib/landing/content";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://kordstudio.syntalixconsultancy.com"),
-  title: "KORD — AI Mastering",
+  title: APP_TITLE,
   description: "Precision mastering powered by AI. Professional-grade masters, streaming-ready.",
   icons: { icon: "/logo-title.png" },
 };

@@ -48,9 +48,9 @@ function mb(bytes: number) {
 }
 
 /**
- * Before/after player. Nothing heavy loads until the visitor presses play:
- * then wavesurfer.js is imported, both files are fetched and decoded, and
- * the two tracks play in lockstep. A/B only swaps two gain nodes, so the
+ * Before/after player. As soon as the page loads, wavesurfer.js is imported
+ * and both files are fetched and decoded, so the waveforms are on screen
+ * straight away and Play starts instantly. The two tracks play in lockstep. A/B only swaps two gain nodes, so the
  * switch is instant and lands at the same position. "Match loudness"
  * turns the louder track down to the RMS level of the quieter one.
  */
@@ -58,7 +58,7 @@ export function BeforeAfterPlayer({ pairs }: { pairs: AudioPair[] }) {
   const [index, setIndex] = useState(0);
   const [side, setSide] = useState<Side>("after");
   const [matched, setMatched] = useState(true);
-  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -66,6 +66,8 @@ export function BeforeAfterPlayer({ pairs }: { pairs: AudioPair[] }) {
   const containers = useRef<Record<Side, HTMLDivElement | null>>({ before: null, after: null });
   const sideRef = useRef(side);
   const matchedRef = useRef(matched);
+  // Bumped whenever a load is superseded, so a stale load never draws or reports.
+  const loadGen = useRef(0);
 
   const pair = pairs[index];
 
@@ -98,15 +100,18 @@ export function BeforeAfterPlayer({ pairs }: { pairs: AudioPair[] }) {
     void e.ctx.close();
   }, []);
 
-  useEffect(() => teardown, [teardown]);
-
-  // The AudioContext is created by the caller inside the click handler, before
-  // any await, so mobile browsers treat it as started by the user.
+  // The AudioContext may be created without a click (page load); browsers keep
+  // it suspended until togglePlay resumes it inside the click handler.
   const load = useCallback(async (ctx: AudioContext) => {
     if (!pair || pair.kind !== "local") return null;
+    const gen = loadGen.current;
     setStatus("loading");
     try {
       const { default: WS } = await import("wavesurfer.js");
+      if (gen !== loadGen.current) {
+        void ctx.close();
+        return null;
+      }
       const media = {} as Engine["media"];
       const gain = {} as Engine["gain"];
       const ws = {} as Engine["ws"];
@@ -152,6 +157,8 @@ export function BeforeAfterPlayer({ pairs }: { pairs: AudioPair[] }) {
 
       engine.current = e;
       await ready;
+      // Torn down (pair switched or component unmounted) while decoding.
+      if (engine.current !== e) return null;
       media.after.addEventListener("timeupdate", () => {
         const active = media[sideRef.current];
         const idle = media[sideRef.current === "after" ? "before" : "after"];
@@ -168,19 +175,40 @@ export function BeforeAfterPlayer({ pairs }: { pairs: AudioPair[] }) {
       setStatus("ready");
       return e;
     } catch {
+      if (gen !== loadGen.current) return null;
       teardown();
       setStatus("error");
       return null;
     }
   }, [pair, applyGains, teardown]);
 
+  const supersede = useCallback(() => {
+    loadGen.current++;
+  }, []);
+
+  const newContext = () => {
+    const Ctx =
+      window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    return new Ctx();
+  };
+
+  // Load the selected pair on page load (and again when another pair is picked).
+  useEffect(() => {
+    if (pair?.kind !== "local") return;
+    supersede();
+    void load(newContext());
+    return () => {
+      supersede();
+      teardown();
+    };
+  }, [pair, load, teardown, supersede]);
+
   const togglePlay = useCallback(async () => {
     if (pair?.kind !== "local") return;
     let e = engine.current;
     if (!e) {
-      const Ctx =
-        window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const ctx = new Ctx();
+      // Only reached after a failed load: this press retries it.
+      const ctx = newContext();
       void ctx.resume();
       e = await load(ctx);
     }
@@ -192,9 +220,10 @@ export function BeforeAfterPlayer({ pairs }: { pairs: AudioPair[] }) {
       return;
     }
     try {
-      await e.ctx.resume();
+      // Resume and play in the same tick as the click so mobile browsers count it as user-started.
+      const resumed = e.ctx.resume();
       e.media.before.currentTime = e.media.after.currentTime;
-      await Promise.all([e.media.before.play(), e.media.after.play()]);
+      await Promise.all([resumed, e.media.before.play(), e.media.after.play()]);
       setPlaying(true);
     } catch {
       // Some phones refuse playback that starts after a long load; the files
@@ -224,11 +253,11 @@ export function BeforeAfterPlayer({ pairs }: { pairs: AudioPair[] }) {
 
   const selectPair = (i: number) => {
     if (i === index) return;
-    teardown();
+    // The load effect tears down the current pair and loads the new one.
     setPlaying(false);
     setTime(0);
     setDuration(0);
-    setStatus("idle");
+    setStatus("loading");
     setIndex(i);
   };
 
@@ -295,9 +324,9 @@ export function BeforeAfterPlayer({ pairs }: { pairs: AudioPair[] }) {
       <div className={s.playerFoot} aria-live="polite">
         <span>
           {status === "error"
-            ? "This example could not be loaded. Check your connection and press play again."
-            : status === "idle"
-              ? `${styleNote(pair)}Press play to load both versions (${mb(pair.bytes)}).`
+            ? "This example could not be loaded. Check your connection and press play to try again."
+            : status !== "ready"
+              ? `${styleNote(pair)}Loading both versions (${mb(pair.bytes)})…`
               : `${styleNote(pair)}${matched ? "Levels matched approximately, so you hear the processing, not just the volume." : "Levels as delivered."}`}
         </span>
         <span className={s.mono}>
