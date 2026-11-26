@@ -1,4 +1,4 @@
-// Landing-page content shared by /design-lab and /.
+// Landing-page content for /.
 // Every style claim below comes from backend/mastering/style_profiles.py
 // (STYLE_PROFILES). Keep the two in sync when a profile changes.
 
@@ -80,5 +80,6 @@ export const ACCESS_HREF = "/access-request";
 
 export const SITE_URL = "https://kordstudio.syntalixconsultancy.com";
 
-// TODO(soujash): contact email. The footer shows a contact link only once this is set.
-export const CONTACT_EMAIL = "";
+// Set NEXT_PUBLIC_CONTACT_EMAIL at build time (inlined by Next.js). The footer
+// shows a contact link only when it is non-empty.
+export const CONTACT_EMAIL = (process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? "").trim();

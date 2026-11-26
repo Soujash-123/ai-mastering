@@ -136,6 +136,12 @@ textarea.input {
   color: rgb(var(--k-ok-deep));
 }
 
+.notice {
+  border: 2px solid currentColor;
+  padding: 0.75rem 0.9rem;
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
 .error {
   border: 2px solid var(--rani);
   background: rgb(var(--k-alert) / 0.08);

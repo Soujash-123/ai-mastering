@@ -1,19 +1,19 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { BeforeAfterPlayer } from "@/components/marketing/BeforeAfterPlayer";
 import { HeroWaveform, VuMeter } from "@/components/marketing/HeroArt";
 import { SiteFooter, SiteHeader } from "@/components/marketing/SiteChrome";
 import { StudioCta } from "@/components/marketing/StudioCta";
 import s from "@/components/marketing/landing.module.css";
-import { AUDIO_PAIRS, availableAudioPairs } from "@/lib/landing/audio-pairs";
-import { ACCESS_HREF, SITE_URL, STYLE_FAMILIES } from "@/lib/landing/content";
+import { availableAudioPairs } from "@/lib/landing/audio-pairs";
+import { SITE_URL, STYLE_FAMILIES } from "@/lib/landing/content";
 import { FAQS } from "@/lib/landing/faq";
 
 export const dynamic = "force-static";
 
 const TITLE = "Kord: release-ready AI mastering for Indian music";
+// Keep under 160 characters (search snippets cut off after that).
 const DESCRIPTION =
-  "Kord masters Hindustani and Carnatic, devotional, film, Bollywood dance and indie tracks for release. Upload a WAV or a phone recording and get masters for Spotify (−14 LUFS) and Apple Music (−16 LUFS).";
+  "Release-ready AI mastering for Indian music: classical, devotional, film, dance and indie. Upload a WAV or phone recording for Spotify and Apple Music.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -98,6 +98,7 @@ function lufsPct(v: number) {
 
 export default function LandingPage() {
   const pairs = availableAudioPairs();
+  const hasListen = pairs.length > 0;
 
   return (
     <>
@@ -105,7 +106,7 @@ export default function LandingPage() {
       <a href="#main" className={s.skip}>
         Skip to content
       </a>
-      <SiteHeader />
+      <SiteHeader listen={hasListen} />
 
       <main id="main">
         {/* Hero */}
@@ -124,9 +125,11 @@ export default function LandingPage() {
                 </div>
                 <div className={s.actions} style={{ marginTop: "1.75rem" }}>
                   <StudioCta className={s.btn} />
-                  <a href="#listen" className={s.btnGhost}>
-                    Hear the difference
-                  </a>
+                  {hasListen && (
+                    <a href="#listen" className={s.btnGhost}>
+                      Hear the difference
+                    </a>
+                  )}
                 </div>
               </div>
               <VuMeter />
@@ -135,42 +138,23 @@ export default function LandingPage() {
           <HeroWaveform />
         </section>
 
-        {/* Before / after */}
-        <section id="listen" className={`${s.section} ${s.onInk}`} aria-labelledby="listen-title">
-          <div className={s.wrap}>
-            <div className={s.sectionHead}>
-              <h2 id="listen-title" className={s.h2}>
-                Hear the same song before and after Kord
-              </h2>
-              <p className={s.sub}>
-                Switch between the two at any moment and playback stays in the same place. Match loudness to judge
-                the sound itself, not just the volume.
-              </p>
-            </div>
-            {pairs.length ? (
-              <BeforeAfterPlayer pairs={pairs} />
-            ) : (
-              <div className={s.player}>
-                <div className={s.empty}>
-                  <p>
-                    Listening examples are being prepared: one track from each of these styles, before and after Kord.
-                    Until they are up, the fastest way to hear Kord is on your own music.
-                  </p>
-                  <ul className={s.emptySlots} aria-label="Examples on the way">
-                    {AUDIO_PAIRS.map((p) => (
-                      <li key={p.slug}>{p.style}</li>
-                    ))}
-                  </ul>
-                  <div>
-                    <Link href={ACCESS_HREF} className={s.btnOnInk}>
-                      Request early access
-                    </Link>
-                  </div>
-                </div>
+        {/* Before / after: only rendered when at least one example exists (lib/landing/audio-pairs.ts). */}
+        {hasListen && (
+          <section id="listen" className={`${s.section} ${s.onInk}`} aria-labelledby="listen-title">
+            <div className={s.wrap}>
+              <div className={s.sectionHead}>
+                <h2 id="listen-title" className={s.h2}>
+                  Hear the same song before and after Kord
+                </h2>
+                <p className={s.sub}>
+                  Switch between the two at any moment and playback stays in the same place. Match loudness to judge
+                  the sound itself, not just the volume.
+                </p>
               </div>
-            )}
-          </div>
-        </section>
+              <BeforeAfterPlayer pairs={pairs} />
+            </div>
+          </section>
+        )}
 
         {/* Styles */}
         <section id="styles" className={s.section} aria-labelledby="styles-title">
@@ -273,10 +257,11 @@ export default function LandingPage() {
         <section className={`${s.section} ${s.onRani}`} aria-labelledby="test-title">
           <div className={s.wrap}>
             <h2 id="test-title" className={s.statement}>
-              In a blind test, five professional producers ranked Kord first against LANDR, Master Channel, BandLab and
-              aimastering.com.
+              In an informal blind listening test, five working producers preferred Kord&rsquo;s masters over four
+              popular AI mastering services.
             </h2>
-            {/* TODO(soujash): confirm wording/details of the blind test (tracks, genres, date, loudness matching). */}
+            {/* TODO(soujash): add the blind-test details to the method note: date, which tracks/genres, and whether
+                the masters were loudness-matched. Do not name the other services. */}
             <p className={s.method}>
               How it was run: each producer heard the same songs mastered by all five services, without knowing which
               service made which master, and ranked them.
@@ -292,9 +277,10 @@ export default function LandingPage() {
             </h2>
             <div className={s.accessText}>
               <p>
-                Tell us a little about your music. We read every request and get in touch personally to set up your
-                account, so Kord works well for your songs from the first upload.
+                Tell us a little about your music. We get in touch personally to set up your account, so Kord works
+                well for your songs from the first upload.
               </p>
+              <p>We read every request ourselves and reply within 48 hours.</p>
               <StudioCta className={s.btn} />
             </div>
           </div>

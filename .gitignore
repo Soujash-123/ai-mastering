@@ -32,6 +32,8 @@ uploads/
 *.wav
 *.flac
 *.mp3
+# Landing-page before/after clips are part of the site.
+!frontend/public/audio/*.mp3
 *.aac
 *.m4a
 *.ogg

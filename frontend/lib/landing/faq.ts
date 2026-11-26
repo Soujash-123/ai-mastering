@@ -37,8 +37,8 @@ export const FAQS: Faq[] = [
   },
   {
     q: "How long do you keep my files?",
-    // TODO(soujash): confirm this matches the privacy policy wording.
-    a: "Your upload and the working files are deleted about 10 minutes after you stop working on the track. The finished master is kept in cloud storage for up to 12 hours so you can download it, and is then deleted automatically. Download your files once they are ready.",
+    // Same wording as app/(site)/privacy/page.tsx; keep the two identical.
+    a: "Working files are deleted about 10 minutes after you stop working on a track; finished masters are kept for up to 12 hours. Download your files once they are ready.",
   },
   {
     q: "How does early access work?",

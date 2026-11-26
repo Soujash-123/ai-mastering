@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type WaveSurfer from "wavesurfer.js";
-import type { AudioPair } from "@/lib/landing/audio-pairs";
+import type { AudioPair, EmbedAudioPair } from "@/lib/landing/audio-pairs";
 import { resolve as resolveColor } from "@/lib/colors";
 import s from "./landing.module.css";
 
@@ -36,6 +36,11 @@ function fmt(t: number) {
   const m = Math.floor(t / 60);
   const sec = Math.floor(t % 60);
   return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
+/** "Devotional style. " when the pair names a style, otherwise nothing. */
+function styleNote(pair: AudioPair) {
+  return pair.style ? `${pair.style} style. ` : "";
 }
 
 function mb(bytes: number) {
@@ -98,7 +103,7 @@ export function BeforeAfterPlayer({ pairs }: { pairs: AudioPair[] }) {
   // The AudioContext is created by the caller inside the click handler, before
   // any await, so mobile browsers treat it as started by the user.
   const load = useCallback(async (ctx: AudioContext) => {
-    if (!pair) return null;
+    if (!pair || pair.kind !== "local") return null;
     setStatus("loading");
     try {
       const { default: WS } = await import("wavesurfer.js");
@@ -170,6 +175,7 @@ export function BeforeAfterPlayer({ pairs }: { pairs: AudioPair[] }) {
   }, [pair, applyGains, teardown]);
 
   const togglePlay = useCallback(async () => {
+    if (pair?.kind !== "local") return;
     let e = engine.current;
     if (!e) {
       const Ctx =
@@ -197,7 +203,7 @@ export function BeforeAfterPlayer({ pairs }: { pairs: AudioPair[] }) {
       e.media.after.pause();
       setPlaying(false);
     }
-  }, [load, playing]);
+  }, [load, playing, pair]);
 
   const choose = (sd: Side) => {
     sideRef.current = sd;
@@ -231,6 +237,7 @@ export function BeforeAfterPlayer({ pairs }: { pairs: AudioPair[] }) {
   return (
     <div className={s.player}>
       <div className={s.playerBar}>
+        {pairs.length > 1 && (
         <div role="group" aria-label="Example tracks" className={s.tabs}>
           {pairs.map((p, i) => (
             <button
@@ -245,6 +252,8 @@ export function BeforeAfterPlayer({ pairs }: { pairs: AudioPair[] }) {
             </button>
           ))}
         </div>
+        )}
+        {pair.kind === "local" && (
         <div className={s.controls}>
           <button type="button" className={s.playBtn} onClick={togglePlay} disabled={busy} aria-pressed={playing}>
             {busy ? "Loading" : playing ? "Pause" : "Play"}
@@ -262,8 +271,13 @@ export function BeforeAfterPlayer({ pairs }: { pairs: AudioPair[] }) {
             Match loudness
           </label>
         </div>
+        )}
       </div>
 
+      {pair.kind === "embed" ? (
+        <EmbedView pair={pair} />
+      ) : (
+      <>
       <div className={s.tracks}>
         {SIDES.map((sd) => (
           <div key={`${pair.slug}-${sd}`} className={s.track} data-active={side === sd}>
@@ -283,13 +297,38 @@ export function BeforeAfterPlayer({ pairs }: { pairs: AudioPair[] }) {
           {status === "error"
             ? "This example could not be loaded. Check your connection and press play again."
             : status === "idle"
-              ? `${pair.style} style. Press play to load both versions (${mb(pair.bytes)}).`
-              : `${pair.style} style.${matched ? " Levels matched approximately, so you hear the processing, not just the volume." : ""}`}
+              ? `${styleNote(pair)}Press play to load both versions (${mb(pair.bytes)}).`
+              : `${styleNote(pair)}${matched ? "Levels matched approximately, so you hear the processing, not just the volume." : "Levels as delivered."}`}
         </span>
         <span className={s.mono}>
           {fmt(time)} / {duration ? fmt(duration) : "–:––"}
         </span>
       </div>
+      </>
+      )}
     </div>
+  );
+}
+
+/** External example (SoundCloud or YouTube). Nothing loads from the provider until the visitor opens this tab. */
+function EmbedView({ pair }: { pair: EmbedAudioPair }) {
+  const video = pair.provider === "YouTube";
+  return (
+    <>
+      <div className={s.embed} data-provider={pair.provider}>
+        <iframe
+          key={pair.slug}
+          src={pair.embedSrc}
+          title={`${pair.label}: before and after Kord (${pair.provider})`}
+          loading="lazy"
+          allow="autoplay; encrypted-media; picture-in-picture"
+          allowFullScreen={video}
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
+      </div>
+      <div className={s.playerFoot}>
+        <span>{styleNote(pair)}The clip plays the version before Kord, then after.</span>
+      </div>
+    </>
   );
 }

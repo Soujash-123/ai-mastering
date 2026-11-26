@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from auth.database import get_db
-from auth.dependencies import get_current_user
+from auth.dependencies import get_current_user, require_roles
 from auth.models import User
 from auth.provisioned_users import is_provisioned_email
 from auth.schemas import LoginRequest, RegisterRequest, TokenResponse, UserResponse, UserRole
@@ -16,7 +16,13 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-def register(body: RegisterRequest, db: Annotated[Session, Depends(get_db)]) -> TokenResponse:
+def register(
+    body: RegisterRequest,
+    _admin: Annotated[User, Depends(require_roles(UserRole.ADMIN))],
+    db: Annotated[Session, Depends(get_db)],
+) -> TokenResponse:
+    """Create a ROLLOUT account. ADMIN only: Kord is invite-only, so the public
+    cannot self-register (manual onboarding uses this or scripts/approve_request.py)."""
     email = body.email.lower()
     if is_provisioned_email(email):
         raise HTTPException(

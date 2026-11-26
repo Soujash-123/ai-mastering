@@ -1,6 +1,11 @@
 import { UploadProps } from "./UploadProps";
 import { MasteringDesk } from "./studio/MasteringDesk";
+import { uploadLimitLabel } from "@/lib/auth";
 import s from "./studio-upload.module.css";
+
+// Reference track and loudness target are not sent to the backend yet, so they
+// stay hidden. Flip this once they are wired up; the markup below is kept.
+const SHOW_UNWIRED_CONTROLS = false;
 
 // Upload studio. Visual layer only: every prop, handler and state comes from
 // app/(app)/studio/page.tsx unchanged.
@@ -106,11 +111,15 @@ export function UploadNeon({
               {isDurationExceeded && (
                 <div className={s.problem} role="alert">
                   <p className={s.problemTitle}>This track is longer than {tierCfg.maxDurationLabel}</p>
-                  <p>Switch to Early Access to upload up to 5 min, or trim your file.</p>
-                  {tier !== "early_access" && (
-                    <button type="button" onClick={(e) => { e.stopPropagation(); setShowTierModal(true); }}>
-                      Switch to Early Access
-                    </button>
+                  {tier !== "early_access" ? (
+                    <>
+                      <p>Early Access allows tracks up to {uploadLimitLabel("EARLY_ACCESS")}. Request it, or trim your file.</p>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setShowTierModal(true); }}>
+                        Request Early Access
+                      </button>
+                    </>
+                  ) : (
+                    <p>Trim your file to {tierCfg.maxDurationLabel} or less and add it again.</p>
                   )}
                 </div>
               )}
@@ -221,7 +230,9 @@ export function UploadNeon({
                     </select>
                   </div>
                   {/* TODO(soujash): reference track and loudness target are not sent to the
-                      backend yet (they never were); disabled until they are wired up. */}
+                      backend yet (they never were); hidden until they are wired up. */}
+                  {SHOW_UNWIRED_CONTROLS && (
+                  <>
                   <div className={s.field}>
                     <span className={s.label}>
                       Reference track <span className={s.labelNote}>(coming soon)</span>
@@ -241,6 +252,8 @@ export function UploadNeon({
                       <option value="-9">−9 LUFS</option>
                     </select>
                   </div>
+                  </>
+                  )}
                 </div>
                 <button
                   type="button"

@@ -1,8 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import emailjs from "@emailjs/browser";
-import { submitEarlyAccessRequest } from "@/lib/auth";
+import { DUPLICATE_REQUEST_MESSAGE, sendAccessRequest } from "@/lib/early-access";
 
 type Props = {
   open: boolean;
@@ -19,48 +18,19 @@ export function EarlyAccessModal({ open, onClose, defaultEmail = "", defaultName
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [duplicate, setDuplicate] = useState(false);
 
   if (!open) return null;
-
-  const enabled = process.env.NEXT_PUBLIC_ENABLE_EARLY_ACCESS_REQUESTS !== "false";
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (reason.trim().length < 20) {
-      setError("Please write at least 20 characters explaining why you want Early Access.");
-      return;
-    }
+    setDuplicate(false);
     setBusy(true);
     try {
-      await submitEarlyAccessRequest({
-        name: name.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
-        reason: reason.trim(),
-      });
-
-      if (enabled) {
-        const serviceId = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID;
-        const templateId = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID;
-        const publicKey = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY;
-        if (serviceId && templateId && publicKey) {
-          await emailjs.send(
-            serviceId,
-            templateId,
-            {
-              name: name.trim(),
-              email: email.trim(),
-              phone: phone.trim(),
-              reason: reason.trim(),
-              time: new Date().toLocaleString(),
-            },
-            publicKey,
-          );
-        }
-      }
-
-      setSuccess(true);
+      const result = await sendAccessRequest({ name, email, phone, reason });
+      if (result === "duplicate") setDuplicate(true);
+      else setSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed");
     } finally {
@@ -76,7 +46,7 @@ export function EarlyAccessModal({ open, onClose, defaultEmail = "", defaultName
           <div className="space-y-4 text-center">
             <p className="text-lg font-bold text-white">Request submitted</p>
             <p className="text-sm text-mist-200/60">
-              Thanks! We&apos;ve received your Early Access request and will be in touch.
+              Thanks! We read every request ourselves and reply within 48 hours.
             </p>
             <button type="button" onClick={onClose} className="rounded-xl bg-accent px-5 py-2.5 text-sm font-bold text-ink-950">
               Close
@@ -102,10 +72,11 @@ export function EarlyAccessModal({ open, onClose, defaultEmail = "", defaultName
                 <input required type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full rounded-xl border border-white/10 bg-ink-950 px-3 py-2.5 text-sm text-white outline-none focus:border-accent/40" />
               </label>
               <label className="block space-y-1.5">
-                <span className="text-xs font-semibold text-mist-200/40">Why would you like Early Access?</span>
-                <textarea required minLength={20} rows={4} value={reason} onChange={(e) => setReason(e.target.value)} className="w-full resize-none rounded-xl border border-white/10 bg-ink-950 px-3 py-2.5 text-sm text-white outline-none focus:border-accent/40" />
+                <span className="text-xs font-semibold text-mist-200/40">About your music (optional)</span>
+                <textarea rows={4} maxLength={1800} placeholder="What are you working on? (optional)" value={reason} onChange={(e) => setReason(e.target.value)} className="w-full resize-none rounded-xl border border-white/10 bg-ink-950 px-3 py-2.5 text-sm text-white outline-none focus:border-accent/40" />
               </label>
-              {error && <p className="text-sm text-rose-300">{error}</p>}
+              {duplicate && <p role="status" className="text-sm text-mist-200/80">{DUPLICATE_REQUEST_MESSAGE}</p>}
+              {error && <p role="alert" className="text-sm text-rose-300">{error}</p>}
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-white/10 px-4 py-2.5 text-sm text-mist-200/60">
                   Cancel

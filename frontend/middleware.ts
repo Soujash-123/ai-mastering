@@ -9,8 +9,11 @@ const PUBLIC_PATHS = new Set([
   "/",
   "/privacy",
   "/terms",
-  "/design-lab",
 ]);
+
+// Pages that were deleted. They skip the login redirect so Next.js answers 404
+// (a redirect would tell crawlers and old links the page still exists).
+const REMOVED_PREFIXES = ["/design-lab"];
 
 // Generated metadata images have no file extension, so the matcher's dot-file
 // exclusion does not cover them.
@@ -18,6 +21,10 @@ const PUBLIC_PREFIXES = ["/opengraph-image", "/twitter-image"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (REMOVED_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+    return NextResponse.next();
+  }
 
   if (PUBLIC_PATHS.has(pathname) || PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();

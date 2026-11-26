@@ -1,14 +1,22 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { createJob } from "@/lib/api";
-import { getTier, getTierConfig, setTier, type UserTier } from "@/lib/tier";
-import { getAudioDurationSec } from "@/lib/auth";
+import { getTierConfig, type TierConfig, type UserTier } from "@/lib/tier";
+import {
+  canAccessAdvancedFeatures,
+  canAccessCreativeDesk,
+  canAccessSimulations,
+  getAudioDurationSec,
+  maxUploadDurationSec,
+  roleBadgeLabel,
+  uploadLimitLabel,
+  type UserRole,
+} from "@/lib/auth";
 import { UploadNeon } from "@/components/UploadNeon";
-import { TierSwitchModal } from "@/components/TierSwitchModal";
+import { EarlyAccessModal } from "@/components/auth/EarlyAccessModal";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { canAccessCreativeDesk } from "@/lib/auth";
 import { effectiveDesk, hasTweaks, tweakFor, type DeskKey, type DeskTweaks } from "@/lib/desk";
 
 const PLATFORMS = [
@@ -42,14 +50,28 @@ const STYLE_FAMILIES = [
 
 const ACCEPTED_EXTS = ["wav", "flac", "aiff", "aif", "m4a", "aac", "mp3", "ogg", "opus"];
 
+/** Upload limits and gates come from the signed-in user's server role (lib/auth.ts), never a client-side tier. */
+function roleConfig(role: UserRole): { tier: UserTier; cfg: TierConfig } {
+  const tier: UserTier = canAccessAdvancedFeatures(role) ? "early_access" : "rollout";
+  return {
+    tier,
+    cfg: {
+      ...getTierConfig(tier),
+      label: roleBadgeLabel(role),
+      maxDurationSec: maxUploadDurationSec(role),
+      maxDurationLabel: uploadLimitLabel(role),
+      canAccessAdvancedSettings: canAccessAdvancedFeatures(role),
+      canPlaySimulations: canAccessSimulations(role),
+    },
+  };
+}
+
 export default function UploadPage() {
   const router = useRouter();
-  const [tier, setTierState] = useState<UserTier>("rollout");
-  const tierCfg = getTierConfig(tier);
-
-  useEffect(() => {
-    setTierState(getTier());
-  }, []);
+  const { user } = useAuth();
+  // Until /me resolves, assume the most restrictive role.
+  const role: UserRole = user?.role ?? "ROLLOUT";
+  const { tier, cfg: tierCfg } = roleConfig(role);
 
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -63,7 +85,6 @@ export default function UploadPage() {
   const [fileDuration, setFileDuration] = useState<number | null>(null);
   const [showTierModal, setShowTierModal] = useState(false);
   // Creative desk: the style sets the start, Early Access/Admin add tweaks.
-  const { user } = useAuth();
   const canEditDesk = !!user && canAccessCreativeDesk(user.role);
   const [deskTweaks, setDeskTweaks] = useState<DeskTweaks>({});
   const desk = effectiveDesk(styleFamily, deskTweaks);
@@ -119,20 +140,8 @@ export default function UploadPage() {
     }
   }, [selectedFile, platform, intentValue, styleFamily, router, isDurationExceeded, canEditDesk, deskTweaks]);
 
-  const handleTierSelect = useCallback((t: UserTier) => {
-    setTier(t);
-    setTierState(t);
-    setShowTierModal(false);
-    // Re-check file duration against new tier
-    if (selectedFile && fileDuration !== null) {
-      const newCfg = getTierConfig(t);
-      if (fileDuration > newCfg.maxDurationSec + 0.05) {
-        setError(`Track exceeds the ${newCfg.maxDurationLabel} limit for ${newCfg.label}.`);
-      } else {
-        setError(null);
-      }
-    }
-  }, [selectedFile, fileDuration]);
+  // Access can't be switched in the browser any more; "upgrade" buttons open the request form instead.
+  const handleTierSelect = useCallback(() => setShowTierModal(false), []);
 
   const fmt = (b: number) =>
     b < 1048576 ? `${(b / 1024).toFixed(0)} KB` : `${(b / 1048576).toFixed(1)} MB`;
@@ -145,13 +154,12 @@ export default function UploadPage() {
 
   return (
     <>
-      {showTierModal && (
-        <TierSwitchModal
-          currentTier={tier}
-          onSelect={handleTierSelect}
-          onClose={() => setShowTierModal(false)}
-        />
-      )}
+      <EarlyAccessModal
+        open={showTierModal}
+        onClose={() => setShowTierModal(false)}
+        defaultEmail={user?.email}
+        defaultName={user?.full_name}
+      />
       <UploadNeon
         dragOver={dragOver}
         setDragOver={setDragOver}

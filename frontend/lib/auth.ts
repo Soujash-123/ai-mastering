@@ -20,11 +20,11 @@ function readTokenCookie(): string | null {
 }
 
 function setTokenCookie(token: string): void {
-  document.cookie = `${TOKEN_KEY}=${encodeURIComponent(token)}; path=/; max-age=${TOKEN_MAX_AGE_SEC}; SameSite=Lax`;
+  document.cookie = `${TOKEN_KEY}=${encodeURIComponent(token)}; path=/; max-age=${TOKEN_MAX_AGE_SEC}; SameSite=Lax; Secure`;
 }
 
 function clearTokenCookie(): void {
-  document.cookie = `${TOKEN_KEY}=; path=/; max-age=0; SameSite=Lax`;
+  document.cookie = `${TOKEN_KEY}=; path=/; max-age=0; SameSite=Lax; Secure`;
 }
 
 /** Cookie is the source of truth (matches middleware); localStorage stays in sync for legacy sessions. */
@@ -163,6 +163,17 @@ export async function fetchMe(): Promise<AuthUser> {
   return (await res.json()) as AuthUser;
 }
 
+/** Error from the API that keeps the HTTP status, so callers can react to e.g. 409. */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 async function parseApiError(res: Response): Promise<string> {
   const text = await res.text();
   try {
@@ -186,5 +197,5 @@ export async function submitEarlyAccessRequest(payload: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error(await parseApiError(res));
+  if (!res.ok) throw new ApiError(await parseApiError(res), res.status);
 }

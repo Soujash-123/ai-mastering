@@ -84,6 +84,8 @@ RETIRED_PATHS=(
     "frontend/app/result"
     "frontend/app/studio"
     "frontend/components/NeonWaveformCanvas.tsx"
+    "frontend/app/(site)/design-lab"
+    "frontend/components/marketing/lab"
 )
 
 remove_retired_files() {

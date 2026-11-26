@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/lib/landing/content";
 
-const PRIVATE = ["/studio", "/result", "/processing", "/design-lab"];
+const PRIVATE = ["/studio", "/result", "/processing"];
 
 export default function robots(): MetadataRoute.Robots {
   return {

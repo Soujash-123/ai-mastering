@@ -51,7 +51,9 @@ class EarlyAccessRequestCreate(BaseModel):
     name: str = Field(min_length=2, max_length=255)
     email: EmailStr
     phone: str = Field(min_length=7, max_length=32)
-    reason: str = Field(min_length=20, max_length=2000)
+    # Optional, no minimum (validation only: the column stays NOT NULL and an
+    # omitted reason is stored as an empty string).
+    reason: str = Field(default="", max_length=2000)
 
     @field_validator("phone")
     @classmethod

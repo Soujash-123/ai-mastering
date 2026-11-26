@@ -509,30 +509,19 @@
   font-size: 0.95rem;
   color: var(--on-ink-soft);
 }
-.empty {
-  padding: clamp(1.5rem, 4vw, 2.5rem) 1.25rem;
-  display: grid;
-  gap: 1.25rem;
+/* External example (SoundCloud / YouTube) */
+.embed {
+  border-top: 3px solid var(--on-ink);
 }
-.empty p {
-  max-width: 38rem;
-  font-size: 1.08rem;
-  line-height: 1.55;
-  color: var(--on-ink-soft);
+.embed iframe {
+  display: block;
+  width: 100%;
+  height: 166px;
+  border: 0;
 }
-.emptySlots {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-.emptySlots {
-  font-weight: 600;
-  color: var(--on-ink);
-}
-.emptySlots li + li::before {
-  content: "/";
-  margin-right: 0.5rem;
-  color: var(--on-ink-soft);
+.embed[data-provider="YouTube"] iframe {
+  height: auto;
+  aspect-ratio: 16 / 9;
 }
 
 /* Styles table ---------------------------------------------------------- */

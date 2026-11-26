@@ -3,7 +3,8 @@ import { CONTACT_EMAIL } from "@/lib/landing/content";
 import { StudioCta } from "./StudioCta";
 import s from "./landing.module.css";
 
-export function SiteHeader({ nav = true }: { nav?: boolean }) {
+/** `listen` is false when the landing page has no before/after examples (the #listen section is not rendered). */
+export function SiteHeader({ nav = true, listen = false }: { nav?: boolean; listen?: boolean }) {
   return (
     <header className={s.header}>
       <div className={`${s.wrap} ${s.headerInner}`}>
@@ -12,7 +13,7 @@ export function SiteHeader({ nav = true }: { nav?: boolean }) {
         </Link>
         {nav && (
           <nav aria-label="Sections" className={s.nav}>
-            <a href="#listen">Listen</a>
+            {listen && <a href="#listen">Listen</a>}
             <a href="#styles">Styles</a>
             <a href="#how">How it works</a>
             <a href="#faq">FAQ</a>

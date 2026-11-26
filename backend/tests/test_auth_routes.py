@@ -2,25 +2,40 @@
 from __future__ import annotations
 
 
-def test_register_success(client):
-    resp = client.post(
-        "/api/auth/register",
-        json={"full_name": "New User", "email": "new@example.com", "password": "password123"},
-    )
+_NEW_USER = {"full_name": "New User", "email": "new@example.com", "password": "password123"}
+
+
+def test_register_requires_auth(client):
+    resp = client.post("/api/auth/register", json=_NEW_USER)
+    assert resp.status_code == 401
+
+
+def test_register_forbidden_for_rollout(client, rollout_headers):
+    resp = client.post("/api/auth/register", json=_NEW_USER, headers=rollout_headers)
+    assert resp.status_code == 403
+
+
+def test_register_forbidden_for_early_access(client, early_access_headers):
+    resp = client.post("/api/auth/register", json=_NEW_USER, headers=early_access_headers)
+    assert resp.status_code == 403
+
+
+def test_register_success_as_admin(client, admin_headers):
+    resp = client.post("/api/auth/register", json=_NEW_USER, headers=admin_headers)
     assert resp.status_code == 201
     body = resp.json()
     assert body["access_token"]
     assert body["token_type"] == "bearer"
 
 
-def test_register_duplicate_email(client):
+def test_register_duplicate_email(client, admin_headers):
     payload = {"full_name": "Dup User", "email": "dup@example.com", "password": "password123"}
-    assert client.post("/api/auth/register", json=payload).status_code == 201
-    resp = client.post("/api/auth/register", json=payload)
+    assert client.post("/api/auth/register", json=payload, headers=admin_headers).status_code == 201
+    resp = client.post("/api/auth/register", json=payload, headers=admin_headers)
     assert resp.status_code == 409
 
 
-def test_register_provisioned_email_blocked(client):
+def test_register_provisioned_email_blocked(client, admin_headers):
     resp = client.post(
         "/api/auth/register",
         json={
@@ -28,14 +43,16 @@ def test_register_provisioned_email_blocked(client):
             "email": "soujash.banerjee@syntalix.com",
             "password": "password123",
         },
+        headers=admin_headers,
     )
     assert resp.status_code == 403
 
 
-def test_register_invalid_short_password(client):
+def test_register_invalid_short_password(client, admin_headers):
     resp = client.post(
         "/api/auth/register",
         json={"full_name": "Short", "email": "short@example.com", "password": "123"},
+        headers=admin_headers,
     )
     assert resp.status_code == 422
 

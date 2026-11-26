@@ -2,10 +2,10 @@
 
 export const dynamic = "force-dynamic";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import emailjs from "@emailjs/browser";
-import { submitEarlyAccessRequest } from "@/lib/auth";
+import { DUPLICATE_REQUEST_MESSAGE, sendAccessRequest } from "@/lib/early-access";
+import { captureUtm } from "@/lib/utm";
 import { AuthFrame } from "@/components/auth/AuthFrame";
 import s from "@/components/auth/auth.module.css";
 
@@ -18,46 +18,22 @@ export default function AccessRequestPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [duplicate, setDuplicate] = useState(false);
 
-  const enabled = process.env.NEXT_PUBLIC_ENABLE_EARLY_ACCESS_REQUESTS !== "false";
+  // A tagged link straight to /access-request counts too, not only one via /.
+  useEffect(() => {
+    captureUtm();
+  }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (reason.trim().length < 20) {
-      setError("Please write at least 20 characters explaining why you want Early Access.");
-      return;
-    }
+    setDuplicate(false);
     setBusy(true);
     try {
-      await submitEarlyAccessRequest({
-        name: name.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
-        reason: reason.trim(),
-      });
-
-      if (enabled) {
-        const serviceId = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID;
-        const templateId = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID;
-        const publicKey = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY;
-        if (serviceId && templateId && publicKey) {
-          await emailjs.send(
-            serviceId,
-            templateId,
-            {
-              name: name.trim(),
-              email: email.trim(),
-              phone: phone.trim(),
-              reason: reason.trim(),
-              time: new Date().toLocaleString(),
-            },
-            publicKey,
-          );
-        }
-      }
-
-      setSuccess(true);
+      const result = await sendAccessRequest({ name, email, phone, reason });
+      if (result === "duplicate") setDuplicate(true);
+      else setSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed");
     } finally {
@@ -79,7 +55,7 @@ export default function AccessRequestPage() {
           </span>
           <h1 className={s.h2}>Request received</h1>
           <p className={s.sub}>
-            Thank you. We read every request ourselves and will get in touch at the email you gave us.
+            Thank you. We read every request ourselves and reply within 48 hours, at the email you gave us.
           </p>
           <button type="button" onClick={() => router.push("/")} className={s.btn}>
             Back to Kord home
@@ -142,23 +118,24 @@ export default function AccessRequestPage() {
 
             <div className={s.field}>
               <label htmlFor="ea-reason" className={s.label}>
-                What do you make, and why Kord? <span className={s.hint}>(20 characters or more)</span>
+                About your music <span className={s.hint}>(optional)</span>
               </label>
               <textarea
                 id="ea-reason"
-                required
-                minLength={20}
                 rows={4}
+                maxLength={1800}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="I produce devotional and indie songs at home and want masters ready for Spotify…"
+                placeholder="What are you working on? (optional)"
                 className={s.input}
-                aria-describedby="ea-reason-count"
               />
-              <span id="ea-reason-count" className={`${s.counter} ${reason.length >= 20 ? s.counterOk : ""}`}>
-                {reason.length} / 20
-              </span>
             </div>
+
+            {duplicate && (
+              <p role="status" className={s.notice}>
+                {DUPLICATE_REQUEST_MESSAGE}
+              </p>
+            )}
 
             {error && (
               <p role="alert" className={s.error}>
